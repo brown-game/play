@@ -9,7 +9,6 @@
     :root {
       --cell-size: 60px; /* auto-updated by resizeBoard() */
       --gap: 5px;
-      --sidebar-w: 340px;
       --debris-size: 6px;
     }
 
@@ -20,33 +19,22 @@
       margin: 0;
       min-height: 100vh;
       display: flex;
-    }
-
-    /* LAYOUT */
-    .layout { display: flex; width: 100%; }
-    .sidebar {
-      width: var(--sidebar-w);
-      padding: 18px 16px;
-      border-right: 1px solid #222;
-      background: #0b0b0b;
-      position: sticky; top: 0;
-      align-self: flex-start; height: 100vh; overflow: auto;
-    }
-    .main {
-      flex: 1; display: flex; flex-direction: column; align-items: center;
-      padding: 18px 16px 40px;
+      flex-direction: column;
+      align-items: center;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
 
     /* SCORE */
     #score {
       font-size: 72px; font-weight: 900; letter-spacing: 1px;
-      margin: 2px 0 14px; text-align: center;
+      margin: 12px 0 8px; text-align: center;
     }
 
     /* HUD */
     #topbar {
       display: flex; align-items: center; justify-content: center;
-      gap: 28px; margin: 4px 0 20px;
+      gap: 28px; margin: 2px 0 16px;
     }
     #thermo { height: 72px; image-rendering: -webkit-optimize-contrast; }
     #ice    { height: 80px; image-rendering: -webkit-optimize-contrast; }
@@ -60,6 +48,7 @@
       background: #000;
       touch-action: manipulation; /* better mobile taps */
       -webkit-tap-highlight-color: transparent;
+      overflow: hidden; /* keep debris inside */
     }
 
     .cell {
@@ -70,6 +59,8 @@
       font-weight: bold; font-size: 25px; color: white;
       text-shadow: 1px 1px 0 black, -1px 1px 0 black, 1px -1px 0 black, -1px -1px 0 black;
       background-size: cover; background-repeat: no-repeat; background-position: center;
+      will-change: transform;
+      z-index: 1;
     }
     .highlight { outline: 3px solid white; box-shadow: 0 0 8px white; z-index: 2; }
 
@@ -82,81 +73,50 @@
       position: absolute; width: var(--debris-size); height: var(--debris-size);
       border-radius: 2px; pointer-events: none;
       background-image: url('brown.png'); background-size: cover; background-position: center;
-      opacity: 1; transition: transform 500ms ease-out, opacity 500ms ease-out, filter 500ms ease-out;
+      background-color: #654321; /* fallback tint */
+      opacity: 1;
+      transform: translate3d(0,0,0);
+      transition: transform 520ms ease-out, opacity 520ms ease-out, filter 520ms ease-out;
       filter: drop-shadow(0 0 2px rgba(0,0,0,.7));
+      will-change: transform, opacity, filter;
+      z-index: 5; /* above cells */
     }
 
-    /* SIDEBAR CONTROLS */
-    .controls h2 { font-size: 18px; margin: 0 0 10px; opacity: 0.9; }
-    .control {
-      display: grid; grid-template-columns: 1fr auto; align-items: center;
-      gap: 10px; margin: 10px 0;
-    }
-    .control label { font-size: 14px; }
-    .control input[type="number"] {
-      width: 110px; padding: 6px 8px; border-radius: 6px;
-      border: 1px solid #333; background: #111; color: #fff;
-    }
-    .equation {
-      margin-top: 18px; padding: 10px 12px; background: #121212; border: 1px solid #262626; border-radius: 8px;
-      font-size: 15px;
-    }
-
-    /* Hide legacy readouts (heat/cleared) */
+    /* Hidden legacy readouts */
     #heat, #cleared { display: none; }
 
     /* Mobile tweaks */
     @media (max-width: 900px) {
-      :root { --gap: 4px; }
-      body { display: block; }
-      .layout { display: block; }
-      .sidebar {
-        width: 100%; height: auto; border-right: none; border-bottom: 1px solid #222;
-      }
+      :root { --gap: 4px; --debris-size: 8px; }
     }
   </style>
 </head>
 <body>
-  <div class="layout">
-    <!-- SIDEBAR -->
-    <aside class="sidebar">
-      <div class="controls">
-        <h2>Tuning</h2>
-        <div class="control"><label for="multiplier">Score Multiplier (Brown)</label><input type="number" id="multiplier" value="100"></div>
-        <div class="control"><label for="secondaryMultiplier">Score Multiplier (Primary→Secondary)</label><input type="number" id="secondaryMultiplier" value="10"></div>
-        <div class="control"><label for="heatLimit">Heat Limit</label><input type="number" id="heatLimit" value="4"></div>
-        <div class="control"><label for="brownThreshold">Brown Reset Threshold</label><input type="number" id="brownThreshold" value="2000"></div>
-        <div class="control"><label for="brownStreakLimit">Brown Streak Reset</label><input type="number" id="brownStreakLimit" value="3000"></div>
-        <div class="control"><label for="blockClearLimit">Block Clear Reset</label><input type="number" id="blockClearLimit" value="50"></div>
-        <div class="control"><label for="brownFlashMs">Brown Flash (ms)</label><input type="number" id="brownFlashMs" value="250"></div>
+  <div id="score">0</div>
 
-        <div class="equation">
-          <strong>Last Equation</strong>
-          <div id="breakdown">—</div>
-        </div>
-      </div>
-    </aside>
-
-    <!-- MAIN -->
-    <main class="main">
-      <div id="score">0</div>
-
-      <div id="topbar">
-        <img id="thermo" alt="Heat" src="heat0.png"/>
-        <div id="clearedProgress">0/50</div>
-        <img id="ice" alt="Ice" src="ice.png"/>
-      </div>
-
-      <!-- kept for logic; visually replaced by HUD -->
-      <div id="heat">Heat: 0</div>
-      <div id="cleared">Blocks Cleared: 0</div>
-
-      <div id="grid"></div>
-    </main>
+  <div id="topbar">
+    <img id="thermo" alt="Heat" src="heat0.png"/>
+    <div id="clearedProgress">0/50</div>
+    <img id="ice" alt="Ice" src="ice.png"/>
   </div>
+
+  <!-- kept for logic; visually replaced by HUD -->
+  <div id="heat">Heat: 0</div>
+  <div id="cleared">Blocks Cleared: 0</div>
+
+  <div id="grid"></div>
 
   <script>
     const gridSize = 8;
+
+    // ===== Constants (no tuning UI) =====
+    const MULT_BROWN = 100;
+    const MULT_SECONDARY = 10;
+    const HEAT_LIMIT = 4;
+    const BROWN_FLASH_MS = 250;
+    const BLOCK_CLEAR_LIMIT = 50;
+    const BROWN_THRESHOLD = 2000;      // big-brown instant cool (effectively unused unless huge groups)
+    const BROWN_STREAK_LIMIT = 3000;   // effectively disabled unless you want streak logic later
 
     // Image files
     const IMAGES = {
@@ -186,18 +146,9 @@
     const grid = document.getElementById('grid');
     const scoreEl = document.getElementById('score');
     const heatEl = document.getElementById('heat');
-    const breakdownEl = document.getElementById('breakdown');
-    const clearedEl = document.getElementById('cleared');
     const thermoEl = document.getElementById('thermo');
+    const clearedEl = document.getElementById('cleared');
     const clearedProgressEl = document.getElementById('clearedProgress');
-
-    const multiplierInput = document.getElementById('multiplier');
-    const secondaryMultiplierInput = document.getElementById('secondaryMultiplier');
-    const heatLimitInput = document.getElementById('heatLimit');
-    const brownThresholdInput = document.getElementById('brownThreshold');
-    const brownStreakLimitInput = document.getElementById('brownStreakLimit');
-    const blockClearLimitInput = document.getElementById('blockClearLimit');
-    const brownFlashMsInput = document.getElementById('brownFlashMs');
 
     /* Helpers to read current CSS sizes (responsive) */
     function sizes() {
@@ -212,9 +163,7 @@
       return { top: r * (cell + gap), left: c * (cell + gap) };
     }
 
-    function randomPrimary() {
-      return PRIMARIES[Math.floor(Math.random() * PRIMARIES.length)];
-    }
+    function randomPrimary() { return PRIMARIES[Math.floor(Math.random() * PRIMARIES.length)]; }
 
     function mixColors(a, b) {
       const pair = new Set([a, b]);
@@ -232,25 +181,21 @@
     }
 
     function formatScore(n) { return n.toLocaleString(); }
-    function setBreakdown(txt) { breakdownEl.textContent = txt || '—'; }
 
-    function updateScore(amount, txt) {
+    function updateScore(amount) {
       score += amount;
       scoreEl.textContent = formatScore(score);
-      setBreakdown(txt);
     }
 
     // Heat → heat0..heat4.png
     function updateThermometer() {
-      const limit = parseInt(heatLimitInput.value || '4');
-      const ratio = Math.max(0, Math.min(1, heat / Math.max(1, limit)));
+      const ratio = Math.max(0, Math.min(1, heat / Math.max(1, HEAT_LIMIT)));
       const level = Math.min(4, Math.floor(ratio * 4 + 0.0001)); // 0..4
       thermoEl.src = `heat${level}.png`;
     }
 
     function maybeScheduleGameOver() {
-      const limit = parseInt(heatLimitInput.value || '10');
-      if (!gameOverScheduled && heat >= limit) {
+      if (!gameOverScheduled && heat >= HEAT_LIMIT) {
         gameOverScheduled = true;
         // brief delay so last score visibly updates
         setTimeout(() => { alert('Game Over — Heat Limit Reached!'); initialize(); }, 650);
@@ -265,9 +210,8 @@
     }
 
     function updateClearedDisplay() {
-      const blockLimit = 50;
       clearedEl.textContent = `Blocks Cleared: ${clearedBlocks}`;
-      clearedProgressEl.textContent = `${Math.min(clearedBlocks, blockLimit)}/${blockLimit}`;
+      clearedProgressEl.textContent = `${Math.min(clearedBlocks, BLOCK_CLEAR_LIMIT)}/${BLOCK_CLEAR_LIMIT}`;
     }
 
     function clearHighlights() {
@@ -338,8 +282,8 @@
 
     // Tiny debris spawner for a list of [r,c] cells
     function spawnDebris(cellsList) {
-      const piecesPerCell = 8;
-      const life = 500; // ms
+      const piecesPerCell = 10;
+      const life = 600; // ms (a bit longer for mobile visibility)
       const created = [];
       const { cell } = sizes();
 
@@ -354,16 +298,21 @@
           grid.appendChild(d);
           created.push(d);
 
-          const dx = (Math.random() * 2 - 1) * 40;
-          const dy = (Math.random() * 2 - 1) * 40;
+          const dx = (Math.random() * 2 - 1) * 44;
+          const dy = (Math.random() * 2 - 1) * 44;
+
+          // Force layout before transition (helps some mobile webviews)
+          // eslint-disable-next-line no-unused-expressions
+          d.offsetWidth;
+
           requestAnimationFrame(() => {
-            d.style.transform = `translate(${dx}px, ${dy}px) rotate(${(Math.random()*120-60)}deg)`;
+            d.style.transform = `translate3d(${dx}px, ${dy}px, 0) rotate(${(Math.random()*120-60)}deg)`;
             d.style.opacity = '0';
             d.style.filter = 'blur(1px)';
           });
         }
       }
-      setTimeout(() => created.forEach(p => p.remove()), life + 30);
+      setTimeout(() => created.forEach(p => p.remove()), life + 40);
     }
 
     function initialize() {
@@ -372,7 +321,6 @@
       inputLocked = false; gameOverScheduled = false;
       grid.innerHTML = '';
       scoreEl.textContent = '0';
-      setBreakdown('—');
       updateThermometer();
       updateClearedDisplay();
 
@@ -390,7 +338,7 @@
 
     // ===== Responsive board sizing =====
     function resizeBoard() {
-      const padding = 32; // approximate .main side padding
+      const padding = 32; // approximate outer padding
       const vw = window.innerWidth || 360;
       const target = Math.max(280, Math.min(vw - padding * 2, 720)); // clamp width
       const gap = sizes().gap;
@@ -405,7 +353,7 @@
         ice.style.height = Math.round(cell * 1.3) + 'px';
       }
     }
-    window.addEventListener('resize', resizeBoard);
+    window.addEventListener('resize', resizeBoard, { passive: true });
     window.addEventListener('orientationchange', resizeBoard);
 
     // ===== Nearest-tile tap targeting + debounce via Pointer Events =====
@@ -478,9 +426,8 @@
         const g1 = group1.length, g2 = group2.length;
         const total = g1 + g2;
 
-        const mult = parseFloat(multiplierInput.value || '1');
-        const scoreAmount = g1 * g2 * mult;
-        updateScore(scoreAmount, `${g1} × ${g2} × ${mult} = ${scoreAmount}`);
+        const scoreAmount = g1 * g2 * MULT_BROWN;
+        updateScore(scoreAmount);
 
         clearedBlocks += total;
         updateClearedDisplay();
@@ -496,7 +443,6 @@
         }
 
         inputLocked = true;
-        const flashMs = parseInt(brownFlashMsInput.value || '250');
 
         // After the adjustable flash, explode into debris + shatter
         setTimeout(() => {
@@ -505,9 +451,9 @@
             if (cellEl) cellEl.classList.add('shatter');
           }
           spawnDebris(cellsToRemove);
-        }, flashMs);
+        }, BROWN_FLASH_MS);
 
-        // Remove cells after flash + debris life (~500ms)
+        // Remove cells after flash + debris life
         setTimeout(() => {
           for (const [rr, cc] of cellsToRemove) {
             const cellEl = cells[rr][cc];
@@ -515,22 +461,19 @@
             cells[rr][cc] = null;
           }
 
-          // Resets tied to brown
-          const threshold = parseInt(brownThresholdInput.value || '20');
-          const streakLimit = parseInt(brownStreakLimitInput.value || '3');
-          if (g1 + g2 >= threshold || ++brownStreak >= streakLimit) {
+          // Resets tied to brown (kept for parity with earlier logic)
+          if (g1 + g2 >= BROWN_THRESHOLD || ++brownStreak >= BROWN_STREAK_LIMIT) {
             heat = 0; brownStreak = 0; updateThermometer();
           }
 
           // Block-clear reset (50) – cools heat
-          const blockLimit = parseInt(blockClearLimitInput.value || '50');
-          if (clearedBlocks >= blockLimit) {
+          if (clearedBlocks >= BLOCK_CLEAR_LIMIT) {
             heat = 0; clearedBlocks = 0; updateClearedDisplay(); updateThermometer();
           }
 
           animateFall();
           inputLocked = false;
-        }, flashMs + 520);
+        }, BROWN_FLASH_MS + 620); // debris anim ~600ms
 
       } else if (!SECONDARIES.includes(color1) && !SECONDARIES.includes(color2) && mix) {
         // Primary + Primary → Secondary (score FIRST, then heat)
@@ -538,9 +481,8 @@
         const group2 = flood(r, c, color2);
         const g1 = group1.length, g2 = group2.length;
 
-        const secMult = parseFloat(secondaryMultiplierInput.value || '1');
-        const scoreAmount = g1 * g2 * secMult;
-        updateScore(scoreAmount, `${g1} × ${g2} × ${secMult} = ${scoreAmount}`);
+        const scoreAmount = g1 * g2 * MULT_SECONDARY;
+        updateScore(scoreAmount);
 
         for (const [rr, cc] of group1.concat(group2)) {
           board[rr][cc] = mix;
@@ -569,10 +511,30 @@
       })));
     }
 
+    function resizeBoard() {
+      const padding = 32;
+      const vw = window.innerWidth || 360;
+      const target = Math.max(280, Math.min(vw - padding * 2, 720));
+      const gap = sizes().gap;
+      const cell = Math.floor((target - gap * 7) / 8);
+      document.documentElement.style.setProperty('--cell-size', cell + 'px');
+
+      // scale HUD with cell size
+      const thermo = document.getElementById('thermo');
+      const ice = document.getElementById('ice');
+      if (thermo && ice) {
+        thermo.style.height = Math.round(cell * 1.2) + 'px';
+        ice.style.height = Math.round(cell * 1.3) + 'px';
+      }
+    }
+
     preloadImages().then(() => {
       resizeBoard(); // compute size before laying out cells
       initialize();
     });
+
+    window.addEventListener('resize', resizeBoard, { passive: true });
+    window.addEventListener('orientationchange', resizeBoard);
   </script>
 </body>
 </html>
