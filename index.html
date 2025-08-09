@@ -9,7 +9,6 @@
     :root {
       --cell-size: 60px; /* auto-updated by resizeBoard() */
       --gap: 5px;
-      --debris-size: 6px;
     }
 
     body {
@@ -42,13 +41,13 @@
 
     /* BOARD */
     #grid {
-      position: relative; /* debris are absolutely positioned inside */
+      position: relative;
       width: calc(var(--cell-size) * 8 + var(--gap) * 7);
       height: calc(var(--cell-size) * 8 + var(--gap) * 7);
       background: #000;
-      touch-action: manipulation; /* better mobile taps */
+      touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
-      overflow: hidden; /* keep debris inside */
+      overflow: hidden;
     }
 
     .cell {
@@ -64,30 +63,15 @@
     }
     .highlight { outline: 3px solid white; box-shadow: 0 0 8px white; z-index: 2; }
 
-    /* Pre-fade on the tiles themselves */
-    .shatter { animation: fadeShatter 450ms ease-out forwards; }
-    @keyframes fadeShatter { to { opacity: 0; filter: blur(3px) brightness(1.3); } }
-
-    /* Debris pieces */
-    .debris {
-      position: absolute; width: var(--debris-size); height: var(--debris-size);
-      border-radius: 2px; pointer-events: none;
-      background-image: url('brown.png'); background-size: cover; background-position: center;
-      background-color: #654321; /* fallback tint */
-      opacity: 1;
-      transform: translate3d(0,0,0);
-      transition: transform 520ms ease-out, opacity 520ms ease-out, filter 520ms ease-out;
-      filter: drop-shadow(0 0 2px rgba(0,0,0,.7));
-      will-change: transform, opacity, filter;
-      z-index: 5; /* above cells */
-    }
+    /* Pure fade-out for removals (no blur) */
+    .fadeOut { animation: fadeOut 400ms ease-out forwards; }
+    @keyframes fadeOut { to { opacity: 0; } }
 
     /* Hidden legacy readouts */
     #heat, #cleared { display: none; }
 
-    /* Mobile tweaks */
     @media (max-width: 900px) {
-      :root { --gap: 4px; --debris-size: 8px; }
+      :root { --gap: 4px; }
     }
   </style>
 </head>
@@ -109,25 +93,26 @@
   <script>
     const gridSize = 8;
 
-    // ===== Constants (no tuning UI) =====
+    // ===== Defaults (no tuning UI) =====
     const MULT_BROWN = 100;
     const MULT_SECONDARY = 10;
     const HEAT_LIMIT = 4;
     const BROWN_FLASH_MS = 250;
     const BLOCK_CLEAR_LIMIT = 50;
-    const BROWN_THRESHOLD = 2000;      // big-brown instant cool (effectively unused unless huge groups)
-    const BROWN_STREAK_LIMIT = 3000;   // effectively disabled unless you want streak logic later
+    const BROWN_THRESHOLD = 2000;
+    const BROWN_STREAK_LIMIT = 3000;
 
-    // Image files
+    // 90×90 WEBP tiles
     const IMAGES = {
-      R: 'red.png',
-      B: 'blue.png',
-      Y: 'yellow.png',
-      P: 'purple.png',
-      G: 'green.png',
-      O: 'orange.png',
-      brown: 'brown.png'
+      R: 'red.webp',
+      B: 'blue.webp',
+      Y: 'yellow.webp',
+      P: 'purple.webp',
+      G: 'green.webp',
+      O: 'orange.webp',
+      brown: 'brown.webp'
     };
+    // Keep thermometer/ice as-is unless you also have .webp versions
     const UI_IMAGES = ['heat0.png','heat1.png','heat2.png','heat3.png','heat4.png','ice.png'];
 
     const PRIMARIES = ['R', 'B', 'Y'];
@@ -150,7 +135,7 @@
     const clearedEl = document.getElementById('cleared');
     const clearedProgressEl = document.getElementById('clearedProgress');
 
-    /* Helpers to read current CSS sizes (responsive) */
+    /* Responsive sizes */
     function sizes() {
       const rs = getComputedStyle(document.documentElement);
       return {
@@ -181,24 +166,18 @@
     }
 
     function formatScore(n) { return n.toLocaleString(); }
+    function updateScore(amount) { score += amount; scoreEl.textContent = formatScore(score); }
 
-    function updateScore(amount) {
-      score += amount;
-      scoreEl.textContent = formatScore(score);
-    }
-
-    // Heat → heat0..heat4.png
     function updateThermometer() {
       const ratio = Math.max(0, Math.min(1, heat / Math.max(1, HEAT_LIMIT)));
-      const level = Math.min(4, Math.floor(ratio * 4 + 0.0001)); // 0..4
+      const level = Math.min(4, Math.floor(ratio * 4 + 0.0001));
       thermoEl.src = `heat${level}.png`;
     }
 
     function maybeScheduleGameOver() {
       if (!gameOverScheduled && heat >= HEAT_LIMIT) {
         gameOverScheduled = true;
-        // brief delay so last score visibly updates
-        setTimeout(() => { alert('Game Over — Heat Limit Reached!'); initialize(); }, 650);
+        setTimeout(() => { alert('Game Over — Heat Limit Reached!'); initialize(); }, 650); // let score update show
       }
     }
 
@@ -280,41 +259,6 @@
       }
     }
 
-    // Tiny debris spawner for a list of [r,c] cells
-    function spawnDebris(cellsList) {
-      const piecesPerCell = 10;
-      const life = 600; // ms (a bit longer for mobile visibility)
-      const created = [];
-      const { cell } = sizes();
-
-      for (const [rr, cc] of cellsList) {
-        const { left, top } = getPosition(rr, cc);
-        for (let i = 0; i < piecesPerCell; i++) {
-          const d = document.createElement('div');
-          d.className = 'debris';
-          const size = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--debris-size'));
-          d.style.left = (left + Math.random() * (cell - size)) + 'px';
-          d.style.top  = (top  + Math.random() * (cell - size)) + 'px';
-          grid.appendChild(d);
-          created.push(d);
-
-          const dx = (Math.random() * 2 - 1) * 44;
-          const dy = (Math.random() * 2 - 1) * 44;
-
-          // Force layout before transition (helps some mobile webviews)
-          // eslint-disable-next-line no-unused-expressions
-          d.offsetWidth;
-
-          requestAnimationFrame(() => {
-            d.style.transform = `translate3d(${dx}px, ${dy}px, 0) rotate(${(Math.random()*120-60)}deg)`;
-            d.style.opacity = '0';
-            d.style.filter = 'blur(1px)';
-          });
-        }
-      }
-      setTimeout(() => created.forEach(p => p.remove()), life + 40);
-    }
-
     function initialize() {
       board = []; cells = []; selected = null;
       score = 0; heat = 0; brownStreak = 0; clearedBlocks = 0;
@@ -338,14 +282,14 @@
 
     // ===== Responsive board sizing =====
     function resizeBoard() {
-      const padding = 32; // approximate outer padding
+      const padding = 32;
       const vw = window.innerWidth || 360;
-      const target = Math.max(280, Math.min(vw - padding * 2, 720)); // clamp width
-      const gap = sizes().gap;
+      const target = Math.max(280, Math.min(vw - padding * 2, 720));
+      const { gap } = sizes();
       const cell = Math.floor((target - gap * 7) / 8);
       document.documentElement.style.setProperty('--cell-size', cell + 'px');
 
-      // scale HUD a bit with cell size
+      // scale HUD with cell size
       const thermo = document.getElementById('thermo');
       const ice = document.getElementById('ice');
       if (thermo && ice) {
@@ -356,7 +300,7 @@
     window.addEventListener('resize', resizeBoard, { passive: true });
     window.addEventListener('orientationchange', resizeBoard);
 
-    // ===== Nearest-tile tap targeting + debounce via Pointer Events =====
+    // ===== Nearest-tile tap targeting + debounce (Pointer Events) =====
     let lastPointerTime = 0;
     let downPos = null;
     const DEBOUNCE_MS = 220;
@@ -375,17 +319,17 @@
     }
 
     grid.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0) return; // only primary
+      if (e.button !== 0) return;
       downPos = { x: e.clientX, y: e.clientY };
     }, { passive: true });
 
     grid.addEventListener('pointerup', (e) => {
       const now = performance.now();
-      if (now - lastPointerTime < DEBOUNCE_MS) return; // debounce
+      if (now - lastPointerTime < DEBOUNCE_MS) return;
 
       const moved = downPos ? Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y) : 0;
       downPos = null;
-      if (moved > TAP_MOVE_TOL) return; // ignore drags
+      if (moved > TAP_MOVE_TOL) return;
 
       lastPointerTime = now;
 
@@ -394,10 +338,9 @@
       handleClick(r, c);
     }, { passive: false });
 
-    // Block legacy synthesized clicks on some webviews
     grid.addEventListener('click', (e) => e.preventDefault(), { passive: false });
 
-    // Main game click logic
+    // ===== Main game click logic =====
     function handleClick(r, c) {
       if (inputLocked || gameOverScheduled) return;
       clearHighlights();
@@ -426,8 +369,7 @@
         const g1 = group1.length, g2 = group2.length;
         const total = g1 + g2;
 
-        const scoreAmount = g1 * g2 * MULT_BROWN;
-        updateScore(scoreAmount);
+        updateScore(g1 * g2 * MULT_BROWN);
 
         clearedBlocks += total;
         updateClearedDisplay();
@@ -444,45 +386,40 @@
 
         inputLocked = true;
 
-        // After the adjustable flash, explode into debris + shatter
+        // Flash brown, then fade them out, then remove
         setTimeout(() => {
           for (const [rr, cc] of cellsToRemove) {
-            const cellEl = cells[rr][cc];
-            if (cellEl) cellEl.classList.add('shatter');
+            const el = cells[rr][cc];
+            if (el) el.classList.add('fadeOut');
           }
-          spawnDebris(cellsToRemove);
         }, BROWN_FLASH_MS);
 
-        // Remove cells after flash + debris life
         setTimeout(() => {
           for (const [rr, cc] of cellsToRemove) {
-            const cellEl = cells[rr][cc];
-            if (cellEl && cellEl.parentNode === grid) cellEl.remove();
+            const el = cells[rr][cc];
+            if (el && el.parentNode === grid) el.remove();
             cells[rr][cc] = null;
           }
 
-          // Resets tied to brown (kept for parity with earlier logic)
           if (g1 + g2 >= BROWN_THRESHOLD || ++brownStreak >= BROWN_STREAK_LIMIT) {
             heat = 0; brownStreak = 0; updateThermometer();
           }
 
-          // Block-clear reset (50) – cools heat
           if (clearedBlocks >= BLOCK_CLEAR_LIMIT) {
             heat = 0; clearedBlocks = 0; updateClearedDisplay(); updateThermometer();
           }
 
           animateFall();
           inputLocked = false;
-        }, BROWN_FLASH_MS + 620); // debris anim ~600ms
+        }, BROWN_FLASH_MS + 420); // fadeOut ~400ms
 
       } else if (!SECONDARIES.includes(color1) && !SECONDARIES.includes(color2) && mix) {
-        // Primary + Primary → Secondary (score FIRST, then heat)
+        // Primary + Primary → Secondary (score first, then heat)
         const group1 = flood(sr, sc, color1);
         const group2 = flood(r, c, color2);
         const g1 = group1.length, g2 = group2.length;
 
-        const scoreAmount = g1 * g2 * MULT_SECONDARY;
-        updateScore(scoreAmount);
+        updateScore(g1 * g2 * MULT_SECONDARY);
 
         for (const [rr, cc] of group1.concat(group2)) {
           board[rr][cc] = mix;
@@ -492,10 +429,9 @@
         }
 
         brownStreak = 0;
-        addHeat(1); // last-move score already shown
+        addHeat(1);
 
       } else {
-        // No scoring change, but if it was a valid non-brown mix attempt, add heat
         if (color1 !== color2 && mix !== 'brown' && mix !== null) {
           brownStreak = 0;
           addHeat(1);
@@ -515,11 +451,10 @@
       const padding = 32;
       const vw = window.innerWidth || 360;
       const target = Math.max(280, Math.min(vw - padding * 2, 720));
-      const gap = sizes().gap;
+      const { gap } = sizes();
       const cell = Math.floor((target - gap * 7) / 8);
       document.documentElement.style.setProperty('--cell-size', cell + 'px');
 
-      // scale HUD with cell size
       const thermo = document.getElementById('thermo');
       const ice = document.getElementById('ice');
       if (thermo && ice) {
@@ -529,7 +464,7 @@
     }
 
     preloadImages().then(() => {
-      resizeBoard(); // compute size before laying out cells
+      resizeBoard();
       initialize();
     });
 
