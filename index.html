@@ -2,38 +2,123 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
   <title>Color Mixer</title>
   <style>
-    :root{
-      --cell-size:60px; --gap:5px; --sidebar-w:340px; --debris-size:6px;
+    :root {
+      --cell-size: 60px; /* auto-updated by resizeBoard() */
+      --gap: 5px;
+      --sidebar-w: 340px;
+      --debris-size: 6px;
     }
-    body{font-family:sans-serif;background:#000;color:#fff;margin:0;min-height:100vh;display:flex}
-    .layout{display:flex;width:100%}
-    .sidebar{width:var(--sidebar-w);padding:18px 16px;border-right:1px solid #222;background:#0b0b0b;position:sticky;top:0;align-self:flex-start;height:100vh;overflow:auto}
-    .main{flex:1;display:flex;flex-direction:column;align-items:center;padding:18px 16px 40px}
-    #score{font-size:72px;font-weight:900;letter-spacing:1px;margin:2px 0 14px;text-align:center}
-    #topbar{display:flex;align-items:center;justify-content:center;gap:28px;margin:4px 0 20px}
-    #thermo{height:72px;image-rendering:-webkit-optimize-contrast}
-    #ice{height:80px;image-rendering:-webkit-optimize-contrast}
-    #clearedProgress{font-size:32px;min-width:110px;text-align:right}
-    #grid{position:relative;width:calc(var(--cell-size)*8 + var(--gap)*7);height:calc(var(--cell-size)*8 + var(--gap)*7);background:#000}
-    .cell{width:var(--cell-size);height:var(--cell-size);border-radius:12px;position:absolute;transition:transform 300ms ease-out;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:25px;color:#fff;text-shadow:1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000;background-size:cover;background-repeat:no-repeat;background-position:center}
-    .highlight{outline:3px solid #fff;box-shadow:0 0 8px #fff;z-index:2}
-    .shatter{animation:fadeShatter 450ms ease-out forwards}
-    @keyframes fadeShatter{to{opacity:0;filter:blur(3px) brightness(1.3)}}
-    .debris{position:absolute;width:var(--debris-size);height:var(--debris-size);border-radius:2px;pointer-events:none;background-image:url('brown.png');background-size:cover;background-position:center;opacity:1;transition:transform 500ms ease-out,opacity 500ms ease-out,filter 500ms ease-out;filter:drop-shadow(0 0 2px rgba(0,0,0,.7))}
-    .controls h2{font-size:18px;margin:0 0 10px;opacity:.9}
-    .control{display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px;margin:10px 0}
-    .control label{font-size:14px}
-    .control input[type="number"]{width:110px;padding:6px 8px;border-radius:6px;border:1px solid #333;background:#111;color:#fff}
-    .equation{margin-top:18px;padding:10px 12px;background:#121212;border:1px solid #262626;border-radius:8px;font-size:15px}
-    #heat,#cleared{display:none}
-    @media (max-width:900px){body{display:block}.layout{display:block}.sidebar{width:100%;height:auto;border-right:none;border-bottom:1px solid #222}}
+
+    body {
+      font-family: sans-serif;
+      background: #000;
+      color: #fff;
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+    }
+
+    /* LAYOUT */
+    .layout { display: flex; width: 100%; }
+    .sidebar {
+      width: var(--sidebar-w);
+      padding: 18px 16px;
+      border-right: 1px solid #222;
+      background: #0b0b0b;
+      position: sticky; top: 0;
+      align-self: flex-start; height: 100vh; overflow: auto;
+    }
+    .main {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      padding: 18px 16px 40px;
+    }
+
+    /* SCORE */
+    #score {
+      font-size: 72px; font-weight: 900; letter-spacing: 1px;
+      margin: 2px 0 14px; text-align: center;
+    }
+
+    /* HUD */
+    #topbar {
+      display: flex; align-items: center; justify-content: center;
+      gap: 28px; margin: 4px 0 20px;
+    }
+    #thermo { height: 72px; image-rendering: -webkit-optimize-contrast; }
+    #ice    { height: 80px; image-rendering: -webkit-optimize-contrast; }
+    #clearedProgress { font-size: 32px; min-width: 110px; text-align: right; }
+
+    /* BOARD */
+    #grid {
+      position: relative; /* debris are absolutely positioned inside */
+      width: calc(var(--cell-size) * 8 + var(--gap) * 7);
+      height: calc(var(--cell-size) * 8 + var(--gap) * 7);
+      background: #000;
+      touch-action: manipulation; /* better mobile taps */
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .cell {
+      width: var(--cell-size); height: var(--cell-size);
+      border-radius: 12px; position: absolute;
+      transition: transform 300ms ease-out;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: bold; font-size: 25px; color: white;
+      text-shadow: 1px 1px 0 black, -1px 1px 0 black, 1px -1px 0 black, -1px -1px 0 black;
+      background-size: cover; background-repeat: no-repeat; background-position: center;
+    }
+    .highlight { outline: 3px solid white; box-shadow: 0 0 8px white; z-index: 2; }
+
+    /* Pre-fade on the tiles themselves */
+    .shatter { animation: fadeShatter 450ms ease-out forwards; }
+    @keyframes fadeShatter { to { opacity: 0; filter: blur(3px) brightness(1.3); } }
+
+    /* Debris pieces */
+    .debris {
+      position: absolute; width: var(--debris-size); height: var(--debris-size);
+      border-radius: 2px; pointer-events: none;
+      background-image: url('brown.png'); background-size: cover; background-position: center;
+      opacity: 1; transition: transform 500ms ease-out, opacity 500ms ease-out, filter 500ms ease-out;
+      filter: drop-shadow(0 0 2px rgba(0,0,0,.7));
+    }
+
+    /* SIDEBAR CONTROLS */
+    .controls h2 { font-size: 18px; margin: 0 0 10px; opacity: 0.9; }
+    .control {
+      display: grid; grid-template-columns: 1fr auto; align-items: center;
+      gap: 10px; margin: 10px 0;
+    }
+    .control label { font-size: 14px; }
+    .control input[type="number"] {
+      width: 110px; padding: 6px 8px; border-radius: 6px;
+      border: 1px solid #333; background: #111; color: #fff;
+    }
+    .equation {
+      margin-top: 18px; padding: 10px 12px; background: #121212; border: 1px solid #262626; border-radius: 8px;
+      font-size: 15px;
+    }
+
+    /* Hide legacy readouts (heat/cleared) */
+    #heat, #cleared { display: none; }
+
+    /* Mobile tweaks */
+    @media (max-width: 900px) {
+      :root { --gap: 4px; }
+      body { display: block; }
+      .layout { display: block; }
+      .sidebar {
+        width: 100%; height: auto; border-right: none; border-bottom: 1px solid #222;
+      }
+    }
   </style>
 </head>
 <body>
   <div class="layout">
+    <!-- SIDEBAR -->
     <aside class="sidebar">
       <div class="controls">
         <h2>Tuning</h2>
@@ -52,271 +137,442 @@
       </div>
     </aside>
 
+    <!-- MAIN -->
     <main class="main">
       <div id="score">0</div>
+
       <div id="topbar">
         <img id="thermo" alt="Heat" src="heat0.png"/>
         <div id="clearedProgress">0/50</div>
         <img id="ice" alt="Ice" src="ice.png"/>
       </div>
+
+      <!-- kept for logic; visually replaced by HUD -->
       <div id="heat">Heat: 0</div>
       <div id="cleared">Blocks Cleared: 0</div>
+
       <div id="grid"></div>
     </main>
   </div>
 
   <script>
-    const gridSize=8, cellSize=60, gap=5;
+    const gridSize = 8;
 
-    const IMAGES={R:'red.png',B:'blue.png',Y:'yellow.png',P:'purple.png',G:'green.png',O:'orange.png',brown:'brown.png'};
-    const UI_IMAGES=['heat0.png','heat1.png','heat2.png','heat3.png','heat4.png','ice.png'];
-    const PRIMARIES=['R','B','Y'], SECONDARIES=['P','G','O'];
+    // Image files
+    const IMAGES = {
+      R: 'red.png',
+      B: 'blue.png',
+      Y: 'yellow.png',
+      P: 'purple.png',
+      G: 'green.png',
+      O: 'orange.png',
+      brown: 'brown.png'
+    };
+    const UI_IMAGES = ['heat0.png','heat1.png','heat2.png','heat3.png','heat4.png','ice.png'];
 
-    let board=[], cells=[], selected=null, score=0, heat=0, brownStreak=0, clearedBlocks=0;
-    let inputLocked=false, gameOverScheduled=false;
+    const PRIMARIES = ['R', 'B', 'Y'];
+    const SECONDARIES = ['P', 'G', 'O'];
 
-    const grid=document.getElementById('grid');
-    const scoreEl=document.getElementById('score');
-    const heatEl=document.getElementById('heat');
-    const breakdownEl=document.getElementById('breakdown');
-    const clearedEl=document.getElementById('cleared');
-    const thermoEl=document.getElementById('thermo');
-    const clearedProgressEl=document.getElementById('clearedProgress');
+    let board = [];
+    let cells = [];
+    let selected = null;
+    let score = 0;
+    let heat = 0;
+    let brownStreak = 0;
+    let clearedBlocks = 0;
+    let inputLocked = false;
+    let gameOverScheduled = false;
 
-    const multiplierInput=document.getElementById('multiplier');
-    const secondaryMultiplierInput=document.getElementById('secondaryMultiplier');
-    const heatLimitInput=document.getElementById('heatLimit');
-    const brownThresholdInput=document.getElementById('brownThreshold');
-    const brownStreakLimitInput=document.getElementById('brownStreakLimit');
-    const blockClearLimitInput=document.getElementById('blockClearLimit');
-    const brownFlashMsInput=document.getElementById('brownFlashMs');
+    const grid = document.getElementById('grid');
+    const scoreEl = document.getElementById('score');
+    const heatEl = document.getElementById('heat');
+    const breakdownEl = document.getElementById('breakdown');
+    const clearedEl = document.getElementById('cleared');
+    const thermoEl = document.getElementById('thermo');
+    const clearedProgressEl = document.getElementById('clearedProgress');
 
-    function getPosition(r,c){return{top:r*(cellSize+gap),left:c*(cellSize+gap)}}
-    function randomPrimary(){return PRIMARIES[Math.floor(Math.random()*PRIMARIES.length)]}
+    const multiplierInput = document.getElementById('multiplier');
+    const secondaryMultiplierInput = document.getElementById('secondaryMultiplier');
+    const heatLimitInput = document.getElementById('heatLimit');
+    const brownThresholdInput = document.getElementById('brownThreshold');
+    const brownStreakLimitInput = document.getElementById('brownStreakLimit');
+    const blockClearLimitInput = document.getElementById('blockClearLimit');
+    const brownFlashMsInput = document.getElementById('brownFlashMs');
 
-    function mixColors(a,b){
-      const pair=new Set([a,b]);
-      if(pair.has('R')&&pair.has('B'))return'P';
-      if(pair.has('B')&&pair.has('Y'))return'G';
-      if(pair.has('R')&&pair.has('Y'))return'O';
-      if(pair.has('P')&&pair.has('Y'))return'brown';
-      if(pair.has('G')&&pair.has('R'))return'brown';
-      if(pair.has('O')&&pair.has('B'))return'brown';
+    /* Helpers to read current CSS sizes (responsive) */
+    function sizes() {
+      const rs = getComputedStyle(document.documentElement);
+      return {
+        cell: parseInt(rs.getPropertyValue('--cell-size')) || 60,
+        gap: parseInt(rs.getPropertyValue('--gap')) || 5
+      };
+    }
+    function getPosition(r, c) {
+      const { cell, gap } = sizes();
+      return { top: r * (cell + gap), left: c * (cell + gap) };
+    }
+
+    function randomPrimary() {
+      return PRIMARIES[Math.floor(Math.random() * PRIMARIES.length)];
+    }
+
+    function mixColors(a, b) {
+      const pair = new Set([a, b]);
+      if (pair.has('R') && pair.has('B')) return 'P';
+      if (pair.has('B') && pair.has('Y')) return 'G';
+      if (pair.has('R') && pair.has('Y')) return 'O';
+      if (pair.has('P') && pair.has('Y')) return 'brown';
+      if (pair.has('G') && pair.has('R')) return 'brown';
+      if (pair.has('O') && pair.has('B')) return 'brown';
       return null;
     }
 
-    function setCellImage(div,key){div.style.backgroundImage=`url(${IMAGES[key]||IMAGES.brown})`}
-
-    function formatScore(n){return n.toLocaleString()}
-    function setBreakdown(txt){breakdownEl.textContent=txt||'—'}
-    function updateScore(amount,txt){score+=amount;scoreEl.textContent=formatScore(score);setBreakdown(txt)}
-
-    function updateThermometer(){
-      const limit=parseInt(heatLimitInput.value||'4');
-      const ratio=Math.max(0,Math.min(1,heat/Math.max(1,limit)));
-      const level=Math.min(4,Math.floor(ratio*4+0.0001));
-      thermoEl.src=`heat${level}.png`;
+    function setCellImage(div, key) {
+      div.style.backgroundImage = `url(${IMAGES[key] || IMAGES.brown})`;
     }
 
-    function maybeScheduleGameOver(){
-      const limit=parseInt(heatLimitInput.value||'10');
-      if(!gameOverScheduled && heat>=limit){
-        gameOverScheduled=true;
-        setTimeout(()=>{ alert('Game Over — Heat Limit Reached!'); initialize(); },650);
+    function formatScore(n) { return n.toLocaleString(); }
+    function setBreakdown(txt) { breakdownEl.textContent = txt || '—'; }
+
+    function updateScore(amount, txt) {
+      score += amount;
+      scoreEl.textContent = formatScore(score);
+      setBreakdown(txt);
+    }
+
+    // Heat → heat0..heat4.png
+    function updateThermometer() {
+      const limit = parseInt(heatLimitInput.value || '4');
+      const ratio = Math.max(0, Math.min(1, heat / Math.max(1, limit)));
+      const level = Math.min(4, Math.floor(ratio * 4 + 0.0001)); // 0..4
+      thermoEl.src = `heat${level}.png`;
+    }
+
+    function maybeScheduleGameOver() {
+      const limit = parseInt(heatLimitInput.value || '10');
+      if (!gameOverScheduled && heat >= limit) {
+        gameOverScheduled = true;
+        // brief delay so last score visibly updates
+        setTimeout(() => { alert('Game Over — Heat Limit Reached!'); initialize(); }, 650);
       }
     }
 
-    function addHeat(delta){heat+=delta;heatEl.textContent=`Heat: ${heat}`;updateThermometer();maybeScheduleGameOver()}
-
-    function updateClearedDisplay(){
-      const blockLimit=50;
-      clearedEl.textContent=`Blocks Cleared: ${clearedBlocks}`;
-      clearedProgressEl.textContent=`${Math.min(clearedBlocks,blockLimit)}/${blockLimit}`;
+    function addHeat(delta) {
+      heat += delta;
+      heatEl.textContent = `Heat: ${heat}`;
+      updateThermometer();
+      maybeScheduleGameOver();
     }
 
-    function clearHighlights(){
-      for(let r=0;r<gridSize;r++)for(let c=0;c<gridSize;c++){
-        const cell=cells[r][c]; if(cell){cell.classList.remove('highlight');cell.textContent='';}
+    function updateClearedDisplay() {
+      const blockLimit = 50;
+      clearedEl.textContent = `Blocks Cleared: ${clearedBlocks}`;
+      clearedProgressEl.textContent = `${Math.min(clearedBlocks, blockLimit)}/${blockLimit}`;
+    }
+
+    function clearHighlights() {
+      for (let r = 0; r < gridSize; r++) {
+        for (let c = 0; c < gridSize; c++) {
+          const cell = cells[r][c];
+          if (cell) { cell.classList.remove('highlight'); cell.textContent = ''; }
+        }
       }
     }
 
-    function createCell(r,c,color){
-      const div=document.createElement('div'); div.className='cell'; setCellImage(div,color);
-      const {top,left}=getPosition(r,c); div.style.transform=`translate(${left}px, ${top}px)`;
-      div.dataset.r=r; div.dataset.c=c; div.dataset.color=color;
-      grid.appendChild(div); return div;
+    function createCell(r, c, color) {
+      const div = document.createElement('div');
+      div.className = 'cell';
+      setCellImage(div, color);
+      const { top, left } = getPosition(r, c);
+      div.style.transform = `translate(${left}px, ${top}px)`;
+      div.dataset.r = r; div.dataset.c = c; div.dataset.color = color;
+      grid.appendChild(div);
+      return div;
     }
 
-    function flood(r,c,color){
-      const result=[], visited=Array.from({length:gridSize},()=>Array(gridSize).fill(false));
-      const stack=[[r,c]];
-      while(stack.length){
-        const [cr,cc]=stack.pop();
-        if(cr<0||cc<0||cr>=gridSize||cc>=gridSize)continue;
-        if(visited[cr][cc]||board[cr][cc]!==color)continue;
-        visited[cr][cc]=true; result.push([cr,cc]);
-        stack.push([cr-1,cc],[cr+1,cc],[cr,cc-1],[cr,cc+1]);
+    function flood(r, c, color) {
+      const result = [];
+      const visited = Array.from({ length: gridSize }, () => Array(gridSize).fill(false));
+      const stack = [[r, c]];
+      while (stack.length) {
+        const [cr, cc] = stack.pop();
+        if (cr < 0 || cc < 0 || cr >= gridSize || cc >= gridSize) continue;
+        if (visited[cr][cc] || board[cr][cc] !== color) continue;
+        visited[cr][cc] = true;
+        result.push([cr, cc]);
+        stack.push([cr - 1, cc], [cr + 1, cc], [cr, cc - 1], [cr, cc + 1]);
       }
       return result;
     }
 
-    function animateFall(){
-      for(let c=0;c<gridSize;c++){
-        let stack=[];
-        for(let r=gridSize-1;r>=0;r--) if(board[r][c]!==null) stack.push([board[r][c],cells[r][c]]);
-        for(let r=gridSize-1;r>=0;r--){
-          let entry=stack.shift();
-          if(entry){
-            const [color,cell]=entry; board[r][c]=color; cells[r][c]=cell;
-            const {top,left}=getPosition(r,c); cell.dataset.r=r; cell.dataset.c=c; cell.style.transform=`translate(${left}px, ${top}px)`;
-          }else{
-            const color=randomPrimary(); board[r][c]=color; const cell=createCell(-1,c,color); cells[r][c]=cell;
-            cell.dataset.r=r; cell.dataset.c=c; const {top,left}=getPosition(r,c);
-            setTimeout(()=>{ cell.style.transform=`translate(${left}px, ${top}px)`; cell.dataset.r=r; cell.dataset.c=c; },50);
+    function animateFall() {
+      for (let c = 0; c < gridSize; c++) {
+        let stack = [];
+        for (let r = gridSize - 1; r >= 0; r--) {
+          if (board[r][c] !== null) stack.push([board[r][c], cells[r][c]]);
+        }
+        for (let r = gridSize - 1; r >= 0; r--) {
+          let entry = stack.shift();
+          if (entry) {
+            const [color, cell] = entry;
+            board[r][c] = color;
+            cells[r][c] = cell;
+            const { top, left } = getPosition(r, c);
+            cell.dataset.r = r; cell.dataset.c = c;
+            cell.style.transform = `translate(${left}px, ${top}px)`;
+          } else {
+            const color = randomPrimary();
+            board[r][c] = color;
+            const cell = createCell(-1, c, color);
+            cells[r][c] = cell;
+            cell.dataset.r = r; cell.dataset.c = c;
+            const { top, left } = getPosition(r, c);
+            setTimeout(() => {
+              cell.style.transform = `translate(${left}px, ${top}px)`;
+              cell.dataset.r = r; cell.dataset.c = c;
+            }, 50);
           }
         }
       }
     }
 
-    function spawnDebris(cellsList){
-      const piecesPerCell=8, life=500;
-      const created=[];
-      for(const [rr,cc] of cellsList){
-        const {left,top}=getPosition(rr,cc);
-        for(let i=0;i<piecesPerCell;i++){
-          const d=document.createElement('div'); d.className='debris';
-          const size=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--debris-size'));
-          d.style.left=(left+Math.random()*(cellSize-size))+'px';
-          d.style.top =(top +Math.random()*(cellSize-size))+'px';
-          grid.appendChild(d); created.push(d);
-          const dx=(Math.random()*2-1)*40, dy=(Math.random()*2-1)*40;
-          requestAnimationFrame(()=>{ d.style.transform=`translate(${dx}px, ${dy}px) rotate(${(Math.random()*120-60)}deg)`; d.style.opacity='0'; d.style.filter='blur(1px)';});
+    // Tiny debris spawner for a list of [r,c] cells
+    function spawnDebris(cellsList) {
+      const piecesPerCell = 8;
+      const life = 500; // ms
+      const created = [];
+      const { cell } = sizes();
+
+      for (const [rr, cc] of cellsList) {
+        const { left, top } = getPosition(rr, cc);
+        for (let i = 0; i < piecesPerCell; i++) {
+          const d = document.createElement('div');
+          d.className = 'debris';
+          const size = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--debris-size'));
+          d.style.left = (left + Math.random() * (cell - size)) + 'px';
+          d.style.top  = (top  + Math.random() * (cell - size)) + 'px';
+          grid.appendChild(d);
+          created.push(d);
+
+          const dx = (Math.random() * 2 - 1) * 40;
+          const dy = (Math.random() * 2 - 1) * 40;
+          requestAnimationFrame(() => {
+            d.style.transform = `translate(${dx}px, ${dy}px) rotate(${(Math.random()*120-60)}deg)`;
+            d.style.opacity = '0';
+            d.style.filter = 'blur(1px)';
+          });
         }
       }
-      setTimeout(()=>created.forEach(p=>p.remove()), life+30);
+      setTimeout(() => created.forEach(p => p.remove()), life + 30);
     }
 
-    function initialize(){
-      board=[]; cells=[]; selected=null; score=0; heat=0; brownStreak=0; clearedBlocks=0;
-      inputLocked=false; gameOverScheduled=false; grid.innerHTML='';
-      scoreEl.textContent='0'; setBreakdown('—'); updateThermometer(); updateClearedDisplay();
+    function initialize() {
+      board = []; cells = []; selected = null;
+      score = 0; heat = 0; brownStreak = 0; clearedBlocks = 0;
+      inputLocked = false; gameOverScheduled = false;
+      grid.innerHTML = '';
+      scoreEl.textContent = '0';
+      setBreakdown('—');
+      updateThermometer();
+      updateClearedDisplay();
 
-      for(let r=0;r<gridSize;r++){
-        const row=[], cellRow=[];
-        for(let c=0;c<gridSize;c++){ const color=randomPrimary(); row.push(color); const cell=createCell(r,c,color); cellRow.push(cell); }
+      for (let r = 0; r < gridSize; r++) {
+        const row = [], cellRow = [];
+        for (let c = 0; c < gridSize; c++) {
+          const color = randomPrimary();
+          row.push(color);
+          const cell = createCell(r, c, color);
+          cellRow.push(cell);
+        }
         board.push(row); cells.push(cellRow);
       }
     }
 
-    // --- NEW: click anywhere on the grid -> snap to nearest tile
-    function nearestCellFromPoint(clientX, clientY){
-      const rect=grid.getBoundingClientRect();
-      const x=clientX-rect.left, y=clientY-rect.top;
-      // nearest center indices
-      let c=Math.round((x - cellSize/2)/(cellSize+gap));
-      let r=Math.round((y - cellSize/2)/(cellSize+gap));
-      // clamp to grid bounds
-      c=Math.max(0,Math.min(gridSize-1,c));
-      r=Math.max(0,Math.min(gridSize-1,r));
-      return [r,c];
+    // ===== Responsive board sizing =====
+    function resizeBoard() {
+      const padding = 32; // approximate .main side padding
+      const vw = window.innerWidth || 360;
+      const target = Math.max(280, Math.min(vw - padding * 2, 720)); // clamp width
+      const gap = sizes().gap;
+      const cell = Math.floor((target - gap * 7) / 8);
+      document.documentElement.style.setProperty('--cell-size', cell + 'px');
+
+      // scale HUD a bit with cell size
+      const thermo = document.getElementById('thermo');
+      const ice = document.getElementById('ice');
+      if (thermo && ice) {
+        thermo.style.height = Math.round(cell * 1.2) + 'px';
+        ice.style.height = Math.round(cell * 1.3) + 'px';
+      }
+    }
+    window.addEventListener('resize', resizeBoard);
+    window.addEventListener('orientationchange', resizeBoard);
+
+    // ===== Nearest-tile tap targeting + debounce via Pointer Events =====
+    let lastPointerTime = 0;
+    let downPos = null;
+    const DEBOUNCE_MS = 220;
+    const TAP_MOVE_TOL = 10; // px
+
+    function nearestCellFromPoint(clientX, clientY) {
+      const rect = grid.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+      const { cell, gap } = sizes();
+      let c = Math.round((x - cell / 2) / (cell + gap));
+      let r = Math.round((y - cell / 2) / (cell + gap));
+      c = Math.max(0, Math.min(gridSize - 1, c));
+      r = Math.max(0, Math.min(gridSize - 1, r));
+      return [r, c];
     }
 
-    grid.addEventListener('click',(e)=>{
-      const [r,c]=nearestCellFromPoint(e.clientX,e.clientY);
-      handleClick(r,c);
-    }, {passive:true});
+    grid.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return; // only primary
+      downPos = { x: e.clientX, y: e.clientY };
+    }, { passive: true });
 
-    // (Optional) better mobile feel
-    grid.addEventListener('touchstart',(e)=>{
-      const t=e.changedTouches[0]; if(!t) return;
-      const [r,c]=nearestCellFromPoint(t.clientX,t.clientY);
-      handleClick(r,c);
-    }, {passive:true});
+    grid.addEventListener('pointerup', (e) => {
+      const now = performance.now();
+      if (now - lastPointerTime < DEBOUNCE_MS) return; // debounce
 
-    function handleClick(r,c){
-      if(inputLocked||gameOverScheduled) return;
+      const moved = downPos ? Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y) : 0;
+      downPos = null;
+      if (moved > TAP_MOVE_TOL) return; // ignore drags
+
+      lastPointerTime = now;
+
+      const [r, c] = nearestCellFromPoint(e.clientX, e.clientY);
+      e.preventDefault();
+      handleClick(r, c);
+    }, { passive: false });
+
+    // Block legacy synthesized clicks on some webviews
+    grid.addEventListener('click', (e) => e.preventDefault(), { passive: false });
+
+    // Main game click logic
+    function handleClick(r, c) {
+      if (inputLocked || gameOverScheduled) return;
       clearHighlights();
 
-      if(!selected){
-        selected=[r,c];
-        const color=board[r][c];
-        const group=flood(r,c,color);
-        group.forEach(([gr,gc])=>{
-          const cell=cells[gr][gc]; if(cell){cell.classList.add('highlight'); cell.textContent=group.length;}
+      if (!selected) {
+        selected = [r, c];
+        const color = board[r][c];
+        const group = flood(r, c, color);
+        group.forEach(([gr, gc]) => {
+          const cellEl = cells[gr][gc];
+          if (cellEl) { cellEl.classList.add('highlight'); cellEl.textContent = group.length; }
         });
         return;
       }
 
-      const [sr,sc]=selected; selected=null;
-      const color1=board[sr][sc], color2=board[r][c];
-      const mix=mixColors(color1,color2);
+      const [sr, sc] = selected;
+      selected = null;
 
-      if(mix==='brown'){
-        const group1=flood(sr,sc,color1), group2=flood(r,c,color2);
-        const g1=group1.length, g2=group2.length, total=g1+g2;
+      const color1 = board[sr][sc];
+      const color2 = board[r][c];
+      const mix = mixColors(color1, color2);
 
-        const mult=parseFloat(multiplierInput.value||'1');
-        const scoreAmount=g1*g2*mult;
+      if (mix === 'brown') {
+        const group1 = flood(sr, sc, color1);
+        const group2 = flood(r, c, color2);
+        const g1 = group1.length, g2 = group2.length;
+        const total = g1 + g2;
+
+        const mult = parseFloat(multiplierInput.value || '1');
+        const scoreAmount = g1 * g2 * mult;
         updateScore(scoreAmount, `${g1} × ${g2} × ${mult} = ${scoreAmount}`);
 
-        clearedBlocks+=total; updateClearedDisplay();
+        clearedBlocks += total;
+        updateClearedDisplay();
 
-        const cellsToRemove=[];
-        for(const [rr,cc] of group1.concat(group2)){
-          const cell=cells[rr][cc]; if(!cell) continue;
-          cell.classList.remove('highlight'); cell.textContent=''; setCellImage(cell,'brown');
-          board[rr][cc]=null; cellsToRemove.push([rr,cc]);
+        const cellsToRemove = [];
+        for (const [rr, cc] of group1.concat(group2)) {
+          const cellEl = cells[rr][cc];
+          if (!cellEl) continue;
+          cellEl.classList.remove('highlight'); cellEl.textContent = '';
+          setCellImage(cellEl, 'brown');
+          board[rr][cc] = null; // mark empty for fall later
+          cellsToRemove.push([rr, cc]);
         }
 
-        inputLocked=true;
-        const flashMs=parseInt(brownFlashMsInput.value||'250');
+        inputLocked = true;
+        const flashMs = parseInt(brownFlashMsInput.value || '250');
 
         // After the adjustable flash, explode into debris + shatter
-        setTimeout(()=>{
-          // add shatter to visible cells (they might still be present)
-          for(const [rr,cc] of cellsToRemove){ const cell=cells[rr][cc]; if(cell) cell.classList.add('shatter'); }
+        setTimeout(() => {
+          for (const [rr, cc] of cellsToRemove) {
+            const cellEl = cells[rr][cc];
+            if (cellEl) cellEl.classList.add('shatter');
+          }
           spawnDebris(cellsToRemove);
         }, flashMs);
 
         // Remove cells after flash + debris life (~500ms)
-        setTimeout(()=>{
-          for(const [rr,cc] of cellsToRemove){ const cell=cells[rr][cc]; if(cell && cell.parentNode===grid) cell.remove(); cells[rr][cc]=null; }
+        setTimeout(() => {
+          for (const [rr, cc] of cellsToRemove) {
+            const cellEl = cells[rr][cc];
+            if (cellEl && cellEl.parentNode === grid) cellEl.remove();
+            cells[rr][cc] = null;
+          }
 
-          const threshold=parseInt(brownThresholdInput.value||'20');
-          const streakLimit=parseInt(brownStreakLimitInput.value||'3');
-          if(g1+g2>=threshold || ++brownStreak>=streakLimit){ heat=0; brownStreak=0; updateThermometer(); }
+          // Resets tied to brown
+          const threshold = parseInt(brownThresholdInput.value || '20');
+          const streakLimit = parseInt(brownStreakLimitInput.value || '3');
+          if (g1 + g2 >= threshold || ++brownStreak >= streakLimit) {
+            heat = 0; brownStreak = 0; updateThermometer();
+          }
 
-          const blockLimit=parseInt(blockClearLimitInput.value||'50');
-          if(clearedBlocks>=blockLimit){ heat=0; clearedBlocks=0; updateClearedDisplay(); updateThermometer(); }
+          // Block-clear reset (50) – cools heat
+          const blockLimit = parseInt(blockClearLimitInput.value || '50');
+          if (clearedBlocks >= blockLimit) {
+            heat = 0; clearedBlocks = 0; updateClearedDisplay(); updateThermometer();
+          }
 
-          animateFall(); inputLocked=false;
-        }, flashMs + 520); // debris anim ~500ms
+          animateFall();
+          inputLocked = false;
+        }, flashMs + 520);
 
-      }else if(!SECONDARIES.includes(color1)&&!SECONDARIES.includes(color2)&&mix){
-        const group1=flood(sr,sc,color1), group2=flood(r,c,color2);
-        const g1=group1.length, g2=group2.length;
+      } else if (!SECONDARIES.includes(color1) && !SECONDARIES.includes(color2) && mix) {
+        // Primary + Primary → Secondary (score FIRST, then heat)
+        const group1 = flood(sr, sc, color1);
+        const group2 = flood(r, c, color2);
+        const g1 = group1.length, g2 = group2.length;
 
-        const secMult=parseFloat(secondaryMultiplierInput.value||'1');
-        const scoreAmount=g1*g2*secMult;
+        const secMult = parseFloat(secondaryMultiplierInput.value || '1');
+        const scoreAmount = g1 * g2 * secMult;
         updateScore(scoreAmount, `${g1} × ${g2} × ${secMult} = ${scoreAmount}`);
 
-        for(const [rr,cc] of group1.concat(group2)){
-          board[rr][cc]=mix; const cell=cells[rr][cc]; setCellImage(cell,mix); cell.dataset.color=mix;
+        for (const [rr, cc] of group1.concat(group2)) {
+          board[rr][cc] = mix;
+          const cellEl = cells[rr][cc];
+          setCellImage(cellEl, mix);
+          cellEl.dataset.color = mix;
         }
 
-        brownStreak=0;
+        brownStreak = 0;
         addHeat(1); // last-move score already shown
 
-      }else{
-        if(color1!==color2 && mix!=='brown' && mix!==null){ brownStreak=0; addHeat(1); }
+      } else {
+        // No scoring change, but if it was a valid non-brown mix attempt, add heat
+        if (color1 !== color2 && mix !== 'brown' && mix !== null) {
+          brownStreak = 0;
+          addHeat(1);
+        }
       }
     }
 
-    function preloadImages(){
-      const sources=[...Object.values(IMAGES),...UI_IMAGES];
-      return Promise.all(sources.map(src=>new Promise(res=>{const img=new Image(); img.onload=res; img.onerror=res; img.src=src;})));
+    // ===== Boot sequence =====
+    function preloadImages() {
+      const sources = [...Object.values(IMAGES), ...UI_IMAGES];
+      return Promise.all(sources.map(src => new Promise(res => {
+        const img = new Image(); img.onload = res; img.onerror = res; img.src = src;
+      })));
     }
-    preloadImages().then(initialize);
+
+    preloadImages().then(() => {
+      resizeBoard(); // compute size before laying out cells
+      initialize();
+    });
   </script>
 </body>
 </html>
