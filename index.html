@@ -28,6 +28,7 @@
     #score {
       font-size: 72px; font-weight: 900; letter-spacing: 1px;
       margin: 12px 0 8px; text-align: center;
+      position: relative;
     }
 
     /* HUD */
@@ -63,9 +64,28 @@
     }
     .highlight { outline: 3px solid white; box-shadow: 0 0 8px white; z-index: 2; }
 
-    /* Pure fade-out for removals (no blur) */
+    /* Pure fade-out for removals */
     .fadeOut { animation: fadeOut 400ms ease-out forwards; }
     @keyframes fadeOut { to { opacity: 0; } }
+
+    /* Floating +points text */
+    .float-points {
+      position: fixed; /* follow the viewport; we position with client coords */
+      left: 0; top: 0;
+      font-weight: 900;
+      font-size: 36px; /* ~half of score (72px) */
+      color: #fff;
+      pointer-events: none;
+      z-index: 20;
+      /* Outline */
+      -webkit-text-stroke: 2px #000;
+      text-shadow:
+        1px 1px 0 #000, -1px 1px 0 #000,
+        1px -1px 0 #000, -1px -1px 0 #000,
+        2px 0 0 #000, -2px 0 0 #000,
+        0 2px 0 #000, 0 -2px 0 #000;
+      transform: translate(-50%, -50%); /* center at given coords */
+    }
 
     /* Hidden legacy readouts */
     #heat, #cleared { display: none; }
@@ -79,9 +99,9 @@
   <div id="score">0</div>
 
   <div id="topbar">
-    <img id="thermo" alt="Heat" src="heat0.png"/>
+    <img id="thermo" alt="Heat" src="heat0.webp"/>
     <div id="clearedProgress">0/50</div>
-    <img id="ice" alt="Ice" src="ice.png"/>
+    <img id="ice" alt="Ice" src="ice.webp"/>
   </div>
 
   <!-- kept for logic; visually replaced by HUD -->
@@ -93,7 +113,7 @@
   <script>
     const gridSize = 8;
 
-    // ===== Defaults (no tuning UI) =====
+    // ===== Defaults =====
     const MULT_BROWN = 100;
     const MULT_SECONDARY = 10;
     const HEAT_LIMIT = 4;
@@ -112,8 +132,8 @@
       O: 'orange.webp',
       brown: 'brown.webp'
     };
-    // Keep thermometer/ice as-is unless you also have .webp versions
-    const UI_IMAGES = ['heat0.png','heat1.png','heat2.png','heat3.png','heat4.png','ice.png'];
+    // Thermometer & ice now webp too
+    const UI_IMAGES = ['heat0.webp','heat1.webp','heat2.webp','heat3.webp','heat4.webp','ice.webp'];
 
     const PRIMARIES = ['R', 'B', 'Y'];
     const SECONDARIES = ['P', 'G', 'O'];
@@ -125,8 +145,11 @@
     let heat = 0;
     let brownStreak = 0;
     let clearedBlocks = 0;
+
     let inputLocked = false;
     let gameOverScheduled = false;
+    let pointsAnimRunning = false;
+    let pendingGameOverAfterPoints = false;
 
     const grid = document.getElementById('grid');
     const scoreEl = document.getElementById('score');
@@ -166,18 +189,107 @@
     }
 
     function formatScore(n) { return n.toLocaleString(); }
-    function updateScore(amount) { score += amount; scoreEl.textContent = formatScore(score); }
+    function setScoreDisplay(n) { scoreEl.textContent = formatScore(n); }
 
+    // Score increment animation (fast roll for 0.5s)
+    function animateScoreIncrement(addAmount, duration = 500) {
+      const startVal = score;
+      const targetVal = score + addAmount;
+      const start = performance.now();
+
+      function step(now) {
+        const t = Math.min(1, (now - start) / duration);
+        const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+        const shown = Math.floor(startVal + addAmount * eased);
+        setScoreDisplay(shown);
+        if (t < 1) requestAnimationFrame(step);
+        else {
+          score = targetVal; // finalize
+          setScoreDisplay(score);
+          if (pendingGameOverAfterPoints) {
+            pendingGameOverAfterPoints = false;
+            setTimeout(() => { alert('Game Over — Heat Limit Reached!'); initialize(); }, 100);
+          }
+        }
+      }
+      requestAnimationFrame(step);
+    }
+
+    // Floating +points arc from grid center to score
+    function flyPointsToScore(addAmount, onHit) {
+      pointsAnimRunning = true;
+
+      const node = document.createElement('div');
+      node.className = 'float-points';
+      node.textContent = `+${addAmount}`;
+      document.body.appendChild(node);
+
+      const gridRect = grid.getBoundingClientRect();
+      const scoreRect = scoreEl.getBoundingClientRect();
+
+      const startX = gridRect.left + gridRect.width / 2;
+      const startY = gridRect.top + gridRect.height / 2;
+
+      // End near center of the score element
+      const endX = scoreRect.left + scoreRect.width / 2;
+      const endY = scoreRect.top + scoreRect.height / 2;
+
+      // Control point for a nice arc (above the midpoint)
+      const ctrlX = (startX + endX) / 2;
+      const ctrlY = Math.min(startY, endY) - Math.max(60, gridRect.height * 0.2); // arc upward
+
+      const DURATION = 700; // ms
+      const startT = performance.now();
+
+      function quadBezier(t, p0, p1, p2) {
+        const u = 1 - t;
+        return u*u*p0 + 2*u*t*p1 + t*t*p2;
+      }
+
+      function step(now) {
+        const t = Math.min(1, (now - startT) / DURATION);
+        // easeOutSine on param for a nice launch & settle
+        const te = Math.sin((t * Math.PI) / 2);
+
+        const x = quadBezier(te, startX, ctrlX, endX);
+        const y = quadBezier(te, startY, ctrlY, endY);
+
+        node.style.transform = `translate(${x}px, ${y}px)`;
+        node.style.opacity = String(0.6 + 0.4 * (1 - t)); // start 1.0 -> 0.6
+
+        if (t < 1) {
+          requestAnimationFrame(step);
+        } else {
+          node.remove();
+          pointsAnimRunning = false;
+          if (onHit) onHit();
+        }
+      }
+
+      // place initial position before anim
+      node.style.transform = `translate(${startX}px, ${startY}px)`;
+      requestAnimationFrame(step);
+    }
+
+    // Thermometer (webp)
     function updateThermometer() {
       const ratio = Math.max(0, Math.min(1, heat / Math.max(1, HEAT_LIMIT)));
       const level = Math.min(4, Math.floor(ratio * 4 + 0.0001));
-      thermoEl.src = `heat${level}.png`;
+      thermoEl.src = `heat${level}.webp`;
+    }
+
+    function scheduleOrDeferGameOver() {
+      if (pointsAnimRunning) {
+        pendingGameOverAfterPoints = true;
+      } else {
+        setTimeout(() => { alert('Game Over — Heat Limit Reached!'); initialize(); }, 650);
+      }
     }
 
     function maybeScheduleGameOver() {
       if (!gameOverScheduled && heat >= HEAT_LIMIT) {
         gameOverScheduled = true;
-        setTimeout(() => { alert('Game Over — Heat Limit Reached!'); initialize(); }, 650); // let score update show
+        scheduleOrDeferGameOver();
       }
     }
 
@@ -263,8 +375,10 @@
       board = []; cells = []; selected = null;
       score = 0; heat = 0; brownStreak = 0; clearedBlocks = 0;
       inputLocked = false; gameOverScheduled = false;
+      pointsAnimRunning = false; pendingGameOverAfterPoints = false;
+
       grid.innerHTML = '';
-      scoreEl.textContent = '0';
+      setScoreDisplay(0);
       updateThermometer();
       updateClearedDisplay();
 
@@ -340,7 +454,7 @@
 
     grid.addEventListener('click', (e) => e.preventDefault(), { passive: false });
 
-    // ===== Main game click logic =====
+    // ===== Main game click logic (with points fly-in) =====
     function handleClick(r, c) {
       if (inputLocked || gameOverScheduled) return;
       clearHighlights();
@@ -369,7 +483,10 @@
         const g1 = group1.length, g2 = group2.length;
         const total = g1 + g2;
 
-        updateScore(g1 * g2 * MULT_BROWN);
+        const addAmount = g1 * g2 * MULT_BROWN;
+
+        // Visual: fly +points to score, then increment display
+        flyPointsToScore(addAmount, () => animateScoreIncrement(addAmount));
 
         clearedBlocks += total;
         updateClearedDisplay();
@@ -411,15 +528,16 @@
 
           animateFall();
           inputLocked = false;
-        }, BROWN_FLASH_MS + 420); // fadeOut ~400ms
+        }, BROWN_FLASH_MS + 420);
 
       } else if (!SECONDARIES.includes(color1) && !SECONDARIES.includes(color2) && mix) {
-        // Primary + Primary → Secondary (score first, then heat)
+        // Primary + Primary → Secondary (score first visually, then heat)
         const group1 = flood(sr, sc, color1);
         const group2 = flood(r, c, color2);
         const g1 = group1.length, g2 = group2.length;
 
-        updateScore(g1 * g2 * MULT_SECONDARY);
+        const addAmount = g1 * g2 * MULT_SECONDARY;
+        flyPointsToScore(addAmount, () => animateScoreIncrement(addAmount));
 
         for (const [rr, cc] of group1.concat(group2)) {
           board[rr][cc] = mix;
