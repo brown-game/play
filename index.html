@@ -28,29 +28,34 @@
       -moz-osx-font-smoothing: grayscale;
     }
 
-    /* BEST (top-left) */
+    /* BEST (top-left, crown image + number) */
     #best {
       position: fixed;
       top: calc(8px + env(safe-area-inset-top));
       left: calc(10px + env(safe-area-inset-left));
-      font-size: 22px;
-      font-weight: 800;
-      letter-spacing: .5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
       z-index: 50;
-      opacity: .9;
+      user-select: none;
+      pointer-events: none;
       -webkit-text-stroke: 1px #000;
       text-shadow:
         1px 1px 0 #000, -1px 1px 0 #000,
         1px -1px 0 #000, -1px -1px 0 #000;
-      user-select: none;
-      pointer-events: none;
+    }
+    #best img { height: 28px; width: auto; display: block; }
+    #best span {
+      font-size: 22px; font-weight: 800; letter-spacing: .5px;
+      opacity: .92;
     }
 
-    /* SCORE (center top) */
+    /* SCORE (center top) — margin-top is set dynamically to clear the BEST bar */
     #score {
       font-size: 72px; font-weight: 900; letter-spacing: 1px;
       margin: 12px 0 8px; text-align: center;
       position: relative;
+      transition: margin-top 150ms ease-out;
     }
 
     /* HUD (thermometer, 0/50, ice) */
@@ -121,7 +126,10 @@
 </head>
 <body>
   <!-- Top-left BEST -->
-  <div id="best">BEST: 0</div>
+  <div id="best">
+    <img src="crown.webp" alt="High Score"/>
+    <span id="bestScoreText">0</span>
+  </div>
 
   <!-- Center score -->
   <div id="score">0</div>
@@ -161,7 +169,7 @@
       brown: 'brown.webp'
     };
     // Thermometer & ice are webp
-    const UI_IMAGES = ['heat0.webp','heat1.webp','heat2.webp','heat3.webp','heat4.webp','ice.webp'];
+    const UI_IMAGES = ['heat0.webp','heat1.webp','heat2.webp','heat3.webp','heat4.webp','ice.webp','crown.webp'];
 
     const PRIMARIES = ['R', 'B', 'Y'];
     const SECONDARIES = ['P', 'G', 'O'];
@@ -183,6 +191,7 @@
     let highScore = 0;
     const HIGH_KEY = 'highScoreV1';
     const bestEl = document.getElementById('best');
+    const bestScoreText = document.getElementById('bestScoreText');
 
     // Cross-platform storage (Capacitor Preferences if available, else localStorage)
     const Storage = {
@@ -211,7 +220,9 @@
     };
 
     function updateBestUI() {
-      bestEl.textContent = `BEST: ${highScore.toLocaleString()}`;
+      bestScoreText.textContent = highScore.toLocaleString();
+      // ensure the big score clears the BEST display visually
+      requestAnimationFrame(offsetScoreUnderBest);
     }
     async function loadHighScore() {
       const raw = await Storage.get(HIGH_KEY);
@@ -465,6 +476,16 @@
         }
         board.push(row); cells.push(cellRow);
       }
+      // after initial layout, be sure score has room under BEST
+      offsetScoreUnderBest();
+    }
+
+    // Make sure the large score clears the fixed BEST row on all devices
+    function offsetScoreUnderBest() {
+      const rect = bestEl.getBoundingClientRect();
+      // add a little extra breathing room
+      const offset = rect.height + 14; // px
+      scoreEl.style.marginTop = offset + 'px';
     }
 
     // ===== Responsive board sizing =====
@@ -484,9 +505,12 @@
         thermo.style.height = Math.round(cell * 1.2) + 'px';
         ice.style.height = Math.round(cell * 1.3) + 'px';
       }
+
+      // score offset may need recompute on resize/orientation
+      offsetScoreUnderBest();
     }
     window.addEventListener('resize', resizeBoard, { passive: true });
-    window.addEventListener('orientationchange', resizeBoard);
+    window.addEventListener('orientationchange', () => { resizeBoard(); offsetScoreUnderBest(); });
 
     // ===== Nearest-tile tap targeting + debounce (Pointer Events) =====
     let lastPointerTime = 0;
