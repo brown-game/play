@@ -21,7 +21,6 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      /* keep HUD out of notches/rounded corners */
       padding-left: env(safe-area-inset-left);
       padding-right: env(safe-area-inset-right);
       padding-top: env(safe-area-inset-top);
@@ -29,7 +28,25 @@
       -moz-osx-font-smoothing: grayscale;
     }
 
-    /* SCORE */
+    /* BEST (top-left) */
+    #best {
+      position: fixed;
+      top: calc(8px + env(safe-area-inset-top));
+      left: calc(10px + env(safe-area-inset-left));
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: .5px;
+      z-index: 50;
+      opacity: .9;
+      -webkit-text-stroke: 1px #000;
+      text-shadow:
+        1px 1px 0 #000, -1px 1px 0 #000,
+        1px -1px 0 #000, -1px -1px 0 #000;
+      user-select: none;
+      pointer-events: none;
+    }
+
+    /* SCORE (center top) */
     #score {
       font-size: 72px; font-weight: 900; letter-spacing: 1px;
       margin: 12px 0 8px; text-align: center;
@@ -40,7 +57,6 @@
     #topbar {
       display: flex; align-items: center; justify-content: space-between;
       width: var(--board-w);
-      /* inner padding to prevent edge clipping on narrow screens */
       padding-left: calc(12px + env(safe-area-inset-left));
       padding-right: calc(12px + env(safe-area-inset-right));
       box-sizing: border-box;
@@ -104,6 +120,10 @@
   </style>
 </head>
 <body>
+  <!-- Top-left BEST -->
+  <div id="best">BEST: 0</div>
+
+  <!-- Center score -->
   <div id="score">0</div>
 
   <div id="topbar">
@@ -159,6 +179,53 @@
     let pointsAnimRunning = false;
     let pendingGameOverAfterPoints = false;
 
+    // High score
+    let highScore = 0;
+    const HIGH_KEY = 'highScoreV1';
+    const bestEl = document.getElementById('best');
+
+    // Cross-platform storage (Capacitor Preferences if available, else localStorage)
+    const Storage = {
+      async get(key) {
+        try {
+          const Cap = window.Capacitor;
+          const Pref = window.Preferences || Cap?.Plugins?.Preferences || Cap?.Plugins?.Storage;
+          if (Cap?.isNativePlatform?.() && Pref?.get) {
+            const { value } = await Pref.get({ key });
+            return value ?? null;
+          }
+        } catch (_) {}
+        try { return localStorage.getItem(key); } catch { return null; }
+      },
+      async set(key, value) {
+        try {
+          const Cap = window.Capacitor;
+          const Pref = window.Preferences || Cap?.Plugins?.Preferences || Cap?.Plugins?.Storage;
+          if (Cap?.isNativePlatform?.() && Pref?.set) {
+            await Pref.set({ key, value: String(value) });
+            return;
+          }
+        } catch (_) {}
+        try { localStorage.setItem(key, String(value)); } catch {}
+      }
+    };
+
+    function updateBestUI() {
+      bestEl.textContent = `BEST: ${highScore.toLocaleString()}`;
+    }
+    async function loadHighScore() {
+      const raw = await Storage.get(HIGH_KEY);
+      highScore = Math.max(0, parseInt(raw || '0', 10) || 0);
+      updateBestUI();
+    }
+    async function maybeSaveHighScore() {
+      if (score > highScore) {
+        highScore = score;
+        updateBestUI();
+        await Storage.set(HIGH_KEY, String(highScore));
+      }
+    }
+
     const grid = document.getElementById('grid');
     const scoreEl = document.getElementById('score');
     const heatEl = document.getElementById('heat');
@@ -210,10 +277,13 @@
         const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
         const shown = Math.floor(startVal + addAmount * eased);
         setScoreDisplay(shown);
-        if (t < 1) requestAnimationFrame(step);
-        else {
-          score = targetVal; // finalize
+        if (t < 1) {
+          requestAnimationFrame(step);
+        } else {
+          score = targetVal;             // finalize
           setScoreDisplay(score);
+          maybeSaveHighScore();          // save BEST after score lands
+
           if (pendingGameOverAfterPoints) {
             pendingGameOverAfterPoints = false;
             setTimeout(() => { alert('Game Over — Heat Limit Reached!'); initialize(); }, 100);
@@ -223,7 +293,7 @@
       requestAnimationFrame(step);
     }
 
-    // Floating +points arc: holds 250ms at center, then travels to score
+    // Floating +points: hold 250ms at center, then arc to score
     function flyPointsToScore(addAmount, onHit) {
       pointsAnimRunning = true;
 
@@ -238,18 +308,15 @@
       const startX = gridRect.left + gridRect.width / 2;
       const startY = gridRect.top + gridRect.height / 2;
 
-      // End near center of the score element
       const endX = scoreRect.left + scoreRect.width / 2;
       const endY = scoreRect.top + scoreRect.height / 2;
 
-      // Control point for a nice arc (above the midpoint)
       const ctrlX = (startX + endX) / 2;
       const ctrlY = Math.min(startY, endY) - Math.max(60, gridRect.height * 0.2);
 
-      const HOLD_MS = 250;   // stay in the middle first
-      const FLY_MS  = 700;   // then travel
+      const HOLD_MS = 250;
+      const FLY_MS  = 700;
 
-      // place at center first
       node.style.transform = `translate(${startX}px, ${startY}px)`;
 
       function quadBezier(t, p0, p1, p2) {
@@ -262,13 +329,10 @@
         function step(now) {
           const t = Math.min(1, (now - startT) / FLY_MS);
           const te = Math.sin((t * Math.PI) / 2); // easeOutSine
-
           const x = quadBezier(te, startX, ctrlX, endX);
           const y = quadBezier(te, startY, ctrlY, endY);
-
           node.style.transform = `translate(${x}px, ${y}px)`;
           node.style.opacity = String(0.6 + 0.4 * (1 - t));
-
           if (t < 1) requestAnimationFrame(step);
           else {
             node.remove();
@@ -311,8 +375,7 @@
 
     function updateClearedDisplay() {
       clearedEl.textContent = `Blocks Cleared: ${clearedBlocks}`;
-      document.getElementById('clearedProgress').textContent =
-        `${Math.min(clearedBlocks, BLOCK_CLEAR_LIMIT)}/${BLOCK_CLEAR_LIMIT}`;
+      clearedProgressEl.textContent = `${Math.min(clearedBlocks, BLOCK_CLEAR_LIMIT)}/${BLOCK_CLEAR_LIMIT}`;
     }
 
     function clearHighlights() {
@@ -415,7 +478,6 @@
       document.documentElement.style.setProperty('--board-w',
         `calc(${cell}px * 8 + ${gap}px * 7)`);
 
-      // scale HUD with cell size (but HUD never touches edges thanks to padding)
       const thermo = document.getElementById('thermo');
       const ice = document.getElementById('ice');
       if (thermo && ice) {
@@ -573,7 +635,11 @@
       })));
     }
 
-    function start() { resizeBoard(); initialize(); }
+    async function start() {
+      resizeBoard();
+      await loadHighScore();
+      initialize();
+    }
 
     preloadImages().then(start);
   </script>
