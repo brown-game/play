@@ -4,294 +4,196 @@
   <meta charset="UTF-8"/>
   <meta name="viewport"
         content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
-  <title>Color Mixer</title>
+  <title>BROWN — Game</title>
   <style>
     :root {
-      --cell-size: 60px;     /* auto-updated by resizeBoard() */
+      --cell-size: 60px;
       --gap: 5px;
       --board-w: calc(var(--cell-size) * 8 + var(--gap) * 7);
     }
-
-    body {
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-      background: #000;
-      color: #fff;
-      margin: 0;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding-left: env(safe-area-inset-left);
-      padding-right: env(safe-area-inset-right);
-      padding-top: env(safe-area-inset-top);
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-      -webkit-tap-highlight-color: transparent;
-      user-select: none;
+    body{
+      margin:0; background:#000; color:#fff;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+      display:flex; flex-direction:column; align-items:center;
+      -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+      -webkit-tap-highlight-color:transparent;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right)
+               env(safe-area-inset-bottom) env(safe-area-inset-left);
+      user-select:none;
     }
 
-    /* BEST (top-left, crown + number) */
+    /* HUD (top-left) */
     #best {
       position: fixed;
       top: calc(8px + env(safe-area-inset-top));
       left: calc(10px + env(safe-area-inset-left));
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      z-index: 50;
-      pointer-events: none;
+      display: flex; align-items: center; gap: 6px;
+      z-index: 50; pointer-events: none;
     }
     #best img { height: 28px; width: auto; display: block; }
     #best span {
-      font-size: 22px; font-weight: 800; letter-spacing: .5px;
-      opacity: .92;
-      text-shadow:
-        0 0 3px #000, 0 0 6px #000,
-        1px 1px 0 #000, -1px 1px 0 #000,
-        1px -1px 0 #000, -1px 1px 0 #000;
+      font-size: 22px; font-weight: 800; letter-spacing: .5px; opacity: .92;
+      text-shadow: 0 0 3px #000,0 0 6px #000,1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000;
     }
-
-    /* Coins HUD (top-left under crown) */
-    #coinsHud {
-      position: fixed;
-      top: calc(44px + env(safe-area-inset-top)); /* below crown row */
+    #coinsHud{
+      position:fixed; top: calc(44px + env(safe-area-inset-top));
       left: calc(10px + env(safe-area-inset-left));
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      z-index: 50;
-      pointer-events: none;
+      display:flex; align-items:center; gap:6px; z-index:50; pointer-events:none;
     }
-    #coinsHud img { height: 22px; width: auto; display: block; }
-    #coinsHud span {
-      font-size: 18px; font-weight: 800;
-      text-shadow:
-        0 0 3px #000, 0 0 6px #000,
-        1px 1px 0 #000, -1px 1px 0 #000,
-        1px -1px 0 #000, -1px 1px 0 #000;
+    #coinsHud img{ height:22px; width:auto; display:block; }
+    #coinsHud span{
+      font-size:18px; font-weight:800;
+      text-shadow: 0 0 3px #000,0 0 6px #000,1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000;
     }
 
-    /* Home button (top-right) */
-    #homeBtn {
-      position: fixed;
-      top: calc(8px + env(safe-area-inset-top));
+    /* Home button */
+    #homeBtn{
+      position:fixed; top: calc(8px + env(safe-area-inset-top));
       right: calc(10px + env(safe-area-inset-right));
-      z-index: 50;
-      background: none;
-      border: none;
-      padding: 0;
-      cursor: pointer;
+      z-index:50; background:none; border:none; padding:0; cursor:pointer;
     }
-    #homeBtn img { height: 32px; width: auto; display: block; }
+    #homeBtn img{ height:32px; width:auto; display:block; }
 
-    /* SCORE (center top) — margin-top set dynamically to clear BEST+coins rows */
-    #score {
+    /* Big score */
+    #score{
       font-size: 72px; font-weight: 900; letter-spacing: 1px;
-      margin: 12px 0 8px; text-align: center;
-      position: relative;
+      margin: 12px 0 8px; text-align:center; position:relative;
       transition: margin-top 150ms ease-out;
     }
 
-    /* HUD (thermometer, 0/50, ice) — EXACT grid width */
-    #topbar {
-      display: flex; align-items: center; justify-content: space-between;
+    /* HUD bar same width as board */
+    #topbar{
       width: var(--board-w);
-      margin: 2px 0 16px;
-      gap: 16px;
-      box-sizing: border-box;
-    }
-    #thermo, #ice { image-rendering: -webkit-optimize-contrast; display: block; }
-    #clearedProgress {
-      font-size: 36px; font-weight: 900; letter-spacing: .5px;
-      text-align: center;
-      flex: 0 0 auto;
-      text-shadow:
-        0 0 3px #000, 0 0 6px #000,
-        1px 1px 0 #000, -1px 1px 0 #000,
-        1px -1px 0 #000, -1px 1px 0 #000;
+      display:flex; align-items:center; justify-content:space-between;
+      gap:16px; margin: 2px 0 16px; box-sizing:border-box;
     }
 
-    /* BOARD */
-    #grid {
-      position: relative;
-      width: var(--board-w);
-      height: calc(var(--cell-size) * 8 + var(--gap) * 7);
-      background: #000;
-      touch-action: manipulation;
-      overflow: hidden;
+    /* Pretty numerator/denominator with flash on denom */
+    #clearedProgress{
+      font-weight:900; letter-spacing:.5px; text-align:center; flex:0 0 auto;
+      text-shadow: 0 0 3px #000,0 0 6px #000,1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000;
+      display:inline-flex; align-items:baseline; gap:6px;
+    }
+    #numVal{ font-size:36px; }
+    #slash{ font-size:36px; opacity:.9; }
+    #denVal{ font-size:36px; display:inline-block; transform-origin:center; }
+
+    .denomFlash { animation: denomFlash 1s ease-out; }
+    @keyframes denomFlash {
+      0% { transform: scale(1); }
+      25%{ transform: scale(1.35); }
+      100%{ transform: scale(1); }
     }
 
-    .cell {
-      width: var(--cell-size); height: var(--cell-size);
+    /* Board */
+    #grid{
+      position:relative; width:var(--board-w); height: calc(var(--cell-size)*8 + var(--gap)*7);
+      background:#000; overflow:hidden; touch-action: manipulation;
+    }
+    .cell{
+      width:var(--cell-size); height:var(--cell-size);
       border-radius: calc(var(--cell-size) * 0.2);
-      position: absolute;
+      position:absolute; display:flex; align-items:center; justify-content:center;
       transition: transform 300ms ease-out;
-      display: flex; align-items: center; justify-content: center;
-      font-weight: bold; font-size: 25px; color: white;
-      text-shadow: 1px 1px 0 black, -1px 1px 0 black, 1px -1px 0 black, -1px -1px 0 black;
-      background-size: cover; background-repeat: no-repeat; background-position: center;
-      will-change: transform;
-      z-index: 1;
+      color:#fff; font-weight:bold; font-size:25px;
+      text-shadow: 1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000;
+      background: center/cover no-repeat; z-index:1; will-change: transform;
     }
-    .highlight { outline: 3px solid white; box-shadow: 0 0 8px white; z-index: 2; }
+    .highlight{ outline:3px solid #fff; box-shadow:0 0 8px #fff; z-index:2; }
 
-    .fadeOut { animation: fadeOut 400ms ease-out forwards; }
+    .fadeOut{ animation: fadeOut .4s ease-out forwards; }
     @keyframes fadeOut { to { opacity: 0; } }
 
-    .float-points {
-      position: fixed; left: 0; top: 0;
-      font-weight: 900;
-      font-size: 36px;
-      color: #fff;
-      pointer-events: none;
-      z-index: 60;
-      text-shadow:
-        0 0 3px #000, 0 0 6px #000,
-        1px 1px 0 #000, -1px 1px 0 #000,
-        1px -1px 0 #000, -1px 1px 0 #000;
-      transform: translate(-50%, -50%);
+    .float-points{
+      position:fixed; left:0; top:0; transform: translate(-50%,-50%);
+      z-index:60; pointer-events:none; color:#fff; font-weight:900; font-size:36px;
+      text-shadow: 0 0 3px #000,0 0 6px #000,1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000;
     }
 
-    #heat, #cleared { display: none; }
+    /* End modal */
+    #overlay{ position:fixed; inset:0; display:none; align-items:center; justify-content:center;
+      background:rgba(0,0,0,.6); z-index:100; padding:24px; }
+    #endWindow{
+      width: min(calc(var(--board-w)*0.8), 92vw);
+      aspect-ratio: 5/3;
+      background: center/contain no-repeat url('window.webp');
+      display:flex; align-items:center; justify-content:center;
+    }
+    #endInner{ width:78%; text-align:center; transform: translateY(4%); }
+    #finalScoreLabel{
+      font-size: clamp(28px,6vw,48px); font-weight:900; margin:0 0 8px;
+      text-shadow: 0 0 3px #000,0 0 6px #000,1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000;
+    }
+    #coinsEarned, #finalScoreCount{
+      text-shadow: 0 0 3px #000,0 0 6px #000,1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000;
+    }
+    #coinsEarned{ font-size: clamp(26px,6vw,40px); font-weight:900; }
+    #finalScoreCount{ font-size: clamp(22px,5vw,32px); font-weight:800; opacity:.9; margin-top:8px; }
+    #transferRow{ display:inline-flex; align-items:center; gap:10px; margin-top:4px; }
+    #coinImg{ height: clamp(28px,6vw,40px); width:auto; }
 
-    /* === End Window Modal === */
-    #overlay {
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,.6);
-      display: none;
-      align-items: center; justify-content: center;
-      z-index: 100;
-      padding: 24px;
+    #endButtons{ display:flex; gap:10px; justify-content:center; margin-top:12px; }
+    .endBtn{
+      background:#fff; color:#000; font-weight:800; border:none; padding:10px 16px; border-radius:10px;
+      min-width:140px; cursor:pointer;
     }
-    #endWindow {
-      position: relative;
-      /* ~20% smaller than the board width */
-      width: min(calc(var(--board-w) * 0.8), 92vw);
-      aspect-ratio: 5 / 3;
-      background: center / contain no-repeat url('window.webp');
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    #endInner {
-      width: 78%;
-      text-align: center;
-      transform: translateY(4%);
-    }
-    #finalScoreLabel {
-      font-size: clamp(28px, 6vw, 48px);
-      font-weight: 900;
-      margin: 0 0 8px;
-      text-shadow:
-        0 0 3px #000, 0 0 6px #000,
-        1px 1px 0 #000, -1px 1px 0 #000,
-        1px -1px 0 #000, -1px 1px 0 #000;
-    }
-    #transferRow {
-      display: inline-flex; align-items: center; gap: 10px;
-      margin-top: 4px;
-    }
-    #coinImg { height: clamp(28px, 6vw, 40px); width: auto; }
-    #coinsEarned {
-      font-size: clamp(26px, 6vw, 40px);
-      font-weight: 900;
-      min-width: 3ch; text-align: left;
-      text-shadow:
-        0 0 3px #000, 0 0 6px #000,
-        1px 1px 0 #000, -1px 1px 0 #000,
-        1px -1px 0 #000, -1px 1px 0 #000;
-    }
-    #finalScoreCount {
-      font-size: clamp(22px, 5vw, 32px);
-      font-weight: 800;
-      opacity: .9;
-      margin-top: 8px;
-      text-shadow:
-        0 0 3px #000, 0 0 6px #000,
-        1px 1px 0 #000, -1px 1px 0 #000,
-        1px -1px 0 #000, -1px 1px 0 #000;
+    .endBtn[disabled]{ opacity:.6; cursor:default; }
+
+    .float-coins{
+      position:fixed; left:0; top:0; transform: translate(-50%,-50%);
+      z-index:120; pointer-events:none; color:#fff; font-weight:900;
+      font-size: clamp(20px,5vw,32px);
+      text-shadow: 0 0 3px #000,0 0 6px #000,1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000;
     }
 
-    /* Buttons row */
-    #endButtons {
-      display: flex; gap: 10px; justify-content: center; margin-top: 12px;
-    }
-    .endBtn {
-      background: #fff; color: #000; font-weight: 800;
-      border: none; padding: 10px 16px; border-radius: 10px;
-      cursor: pointer;
-      min-width: 140px;
-    }
-    .endBtn[disabled] { opacity: .6; cursor: default; }
-
-    /* Flying +coins label from modal to coins HUD */
-    .float-coins {
-      position: fixed;
-      left: 0; top: 0;
-      font-weight: 900;
-      font-size: clamp(20px, 5vw, 32px);
-      color: #fff;
-      pointer-events: none;
-      z-index: 120;
-      text-shadow:
-        0 0 3px #000, 0 0 6px #000,
-        1px 1px 0 #000, -1px 1px 0 #000,
-        1px -1px 0 #000, -1px 1px 0 #000;
-      transform: translate(-50%, -50%);
-    }
-
-    @media (max-width: 900px) {
-      :root { --gap: 4px; }
-    }
+    @media (max-width: 900px){ :root{ --gap:4px; } }
   </style>
 </head>
 <body>
-  <!-- High score (top-left) -->
+  <!-- High score + coins -->
   <div id="best">
-    <img src="crown.webp" alt="High Score">
+    <img src="crown.webp" alt="Best">
     <span id="bestScoreText">0</span>
   </div>
-
-  <!-- Coins HUD (top-left, under crown) -->
   <div id="coinsHud">
     <img src="coin.webp" alt="Coins">
     <span id="totalCoinsText">0</span>
   </div>
 
-  <!-- Home button (top-right) -->
-  <button id="homeBtn" aria-label="Home" onclick="location.href='index.html'">
+  <!-- Home -->
+  <button id="homeBtn" aria-label="Home" onclick="location.href='home.html'">
     <img src="home.webp" alt="Home">
   </button>
 
-  <!-- Big score -->
+  <!-- Score -->
   <div id="score">0</div>
 
-  <!-- HUD (exact grid width) -->
+  <!-- HUD bar -->
   <div id="topbar">
     <img id="thermo" alt="Heat" src="heat0.webp"/>
-    <div id="clearedProgress">0/50</div>
+    <div id="clearedProgress">
+      <span id="numVal">0</span><span id="slash">/</span><span id="denVal">25</span>
+    </div>
     <img id="ice" alt="Ice" src="ice.webp"/>
   </div>
 
-  <!-- (hidden) logical labels -->
-  <div id="heat">Heat: 0</div>
-  <div id="cleared">Blocks Cleared: 0</div>
+  <!-- hidden logical labels -->
+  <div id="heat" style="display:none">Heat: 0</div>
+  <div id="cleared" style="display:none">Blocks Cleared: 0</div>
 
-  <!-- Game board -->
+  <!-- Board -->
   <div id="grid"></div>
 
-  <!-- End Game Modal -->
+  <!-- End modal -->
   <div id="overlay" role="dialog" aria-modal="true">
     <div id="endWindow">
       <div id="endInner">
         <div id="finalScoreLabel">Final Score</div>
         <div id="finalScoreCount">0</div>
-
         <div id="transferRow">
           <img id="coinImg" src="coin.webp" alt="Coins">
           <div id="coinsEarned">0</div>
         </div>
-
         <div id="endButtons">
           <button id="playAgain" class="endBtn">Play Again</button>
           <button id="watchAd" class="endBtn">Watch Ad (x3)</button>
@@ -301,690 +203,523 @@
   </div>
 
   <script>
+    /************ GAME CONSTANTS ************/
     const gridSize = 8;
 
-    // ===== Defaults =====
     const MULT_BROWN = 100;
     const MULT_SECONDARY = 10;
     const HEAT_LIMIT = 4;
     const BROWN_FLASH_MS = 250;
-    const BLOCK_CLEAR_LIMIT = 50;
     const BROWN_THRESHOLD = 2000;
     const BROWN_STREAK_LIMIT = 3000;
 
-    // 90×90 WEBP tiles
-   const IMAGES = {
-  R: 'Images/red.webp',
-  B: 'Images/blue.webp',
-  Y: 'Images/yellow.webp',
-  P: 'Images/purple.webp',
-  G: 'Images/green.webp',
-  O: 'Images/orange.webp',
-  brown: 'Images/brown.webp'
-};
-    // HUD/UX assets
-    const UI_IMAGES = ['heat0.webp','heat1.webp','heat2.webp','heat3.webp','heat4.webp','ice.webp','crown.webp','home.webp','window.webp','coin.webp'];
+    // Dynamic blocks-to-clear thresholds (denominator)
+    const LIMIT_STEPS = [
+      { score: 0,      limit: 25 },
+      { score: 20000,  limit: 30 },
+      { score: 50000,  limit: 40 },
+      { score: 70000,  limit: 50 },
+      { score: 100000, limit: 55 },
+      { score: 150000, limit: 60 },
+      { score: 200000, limit: 65 },
+      { score: 300000, limit: 70 },
+    ];
+    function getBlockClearLimit(sc){
+      let lim = LIMIT_STEPS[0].limit;
+      for (const s of LIMIT_STEPS) if (sc >= s.score) lim = s.limit; else break;
+      return lim;
+    }
 
-    const PRIMARIES = ['R', 'B', 'Y'];
-    const SECONDARIES = ['P', 'G', 'O'];
+    // Storage keys
+    const HIGH_KEY       = 'highScoreV1';
+    const COINS_KEY      = 'totalCoinsV1';
+    const ACTIVE_SET_KEY = 'activeSetV1';
 
-    let board = [];
-    let cells = [];
+    // Colors / groups
+    const PRIMARIES = ['R','B','Y'];
+    const SECONDARIES = ['P','G','O'];
+
+    /************ STATE ************/
+    let board = [], cells = [];
     let selected = null;
-    let score = 0;
-    let heat = 0;
-    let brownStreak = 0;
-    let clearedBlocks = 0;
+    let score = 0, heat = 0, brownStreak = 0, clearedBlocks = 0;
+    let inputLocked = false, gameOverScheduled = false;
+    let pointsAnimRunning = false, pendingGameOverAfterPoints = false;
 
-    let inputLocked = false;
-    let gameOverScheduled = false;
-    let pointsAnimRunning = false;
-    let pendingGameOverAfterPoints = false;
+    // progress / meta
+    let highScore = 0, totalCoins = 0;
+    let activeSet = -1; // -1 = default art
 
-    // High score & coins
-    let highScore = 0;
-    const HIGH_KEY = 'highScoreV1';
-    const COINS_KEY = 'totalCoinsV1';
-    let totalCoins = 0;
+    // keep last shown denominator to detect changes & flash
+    let lastShownLimit = getBlockClearLimit(0);
 
-    // DOM refs
-    const bestEl = document.getElementById('best');
+    /************ DOM ************/
+    const grid = document.getElementById('grid');
+    const scoreEl = document.getElementById('score');
+    const thermoEl = document.getElementById('thermo');
     const bestScoreText = document.getElementById('bestScoreText');
     const totalCoinsText = document.getElementById('totalCoinsText');
-    const coinsHudEl = document.getElementById('coinsHud');
-
+    const clearedEl = document.getElementById('cleared');
+    const numValEl = document.getElementById('numVal');
+    const denValEl = document.getElementById('denVal');
     const overlayEl = document.getElementById('overlay');
     const finalScoreCountEl = document.getElementById('finalScoreCount');
     const coinsEarnedEl = document.getElementById('coinsEarned');
     const playAgainBtn = document.getElementById('playAgain');
     const watchAdBtn = document.getElementById('watchAd');
 
-    const grid = document.getElementById('grid');
-    const scoreEl = document.getElementById('score');
-    const heatEl = document.getElementById('heat');
-    const thermoEl = document.getElementById('thermo');
-    const clearedEl = document.getElementById('cleared');
-    const clearedProgressEl = document.getElementById('clearedProgress');
-
-    // Cross-platform storage (Capacitor Preferences if available, else localStorage)
+    /************ STORAGE LAYER ************/
     const Storage = {
-      async get(key) {
-        try {
+      async get(key){
+        try{
           const Cap = window.Capacitor;
           const Pref = window.Preferences || Cap?.Plugins?.Preferences || Cap?.Plugins?.Storage;
-          if (Cap?.isNativePlatform?.() && Pref?.get) {
-            const { value } = await Pref.get({ key });
-            return value ?? null;
+          if (Cap?.isNativePlatform?.() && Pref?.get){
+            const { value } = await Pref.get({ key }); return value ?? null;
           }
-        } catch (_) {}
-        try { return localStorage.getItem(key); } catch { return null; }
+        }catch(_){}
+        try{ return localStorage.getItem(key); }catch{ return null; }
       },
-      async set(key, value) {
-        try {
+      async set(key, value){
+        try{
           const Cap = window.Capacitor;
           const Pref = window.Preferences || Cap?.Plugins?.Preferences || Cap?.Plugins?.Storage;
-          if (Cap?.isNativePlatform?.() && Pref?.set) {
-            await Pref.set({ key, value: String(value) });
-            return;
+          if (Cap?.isNativePlatform?.() && Pref?.set){
+            await Pref.set({ key, value: String(value) }); return;
           }
-        } catch (_) {}
-        try { localStorage.setItem(key, String(value)); } catch {}
+        }catch(_){}
+        try{ localStorage.setItem(key, String(value)); }catch{}
       }
     };
 
-    function updateBestUI() {
-      bestScoreText.textContent = highScore.toLocaleString();
-      requestAnimationFrame(offsetScoreUnderTopLeftHUD);
-    }
-    async function loadHighScore() {
-      const raw = await Storage.get(HIGH_KEY);
-      highScore = Math.max(0, parseInt(raw || '0', 10) || 0);
-      updateBestUI();
-    }
-    async function maybeSaveHighScore() {
-      if (score > highScore) {
-        highScore = score;
-        updateBestUI();
-        await Storage.set(HIGH_KEY, String(highScore));
-      }
-    }
+    /************ IMAGES (ACTIVE SET AWARE) ************/
+    // Default art
+    let IMAGES = {
+      R:'red.webp', B:'blue.webp', Y:'yellow.webp',
+      O:'orange.webp', P:'purple.webp', G:'green.webp',
+      brown:'brown.webp'
+    };
+    const UI_IMAGES = ['heat0.webp','heat1.webp','heat2.webp','heat3.webp','heat4.webp','ice.webp','crown.webp','home.webp','window.webp','coin.webp'];
 
-    async function loadCoins() {
-      const raw = await Storage.get(COINS_KEY);
-      totalCoins = Math.max(0, parseInt(raw || '0', 10) || 0);
-      totalCoinsText.textContent = totalCoins.toLocaleString();
-    }
-    async function saveCoins() {
-      totalCoinsText.textContent = totalCoins.toLocaleString();
-      await Storage.set(COINS_KEY, String(totalCoins));
-    }
-    async function saveCoinsSilently() {
-      await Storage.set(COINS_KEY, String(totalCoins)); // no HUD change yet
-    }
-
-    /* Responsive sizes */
-    function sizes() {
-      const rs = getComputedStyle(document.documentElement);
-      return {
-        cell: parseInt(rs.getPropertyValue('--cell-size')) || 60,
-        gap: parseInt(rs.getPropertyValue('--gap')) || 5
-      };
-    }
-    function getPosition(r, c) {
-      const { cell, gap } = sizes();
-      return { top: r * (cell + gap), left: c * (cell + gap) };
-    }
-
-    function randomPrimary() { return PRIMARIES[Math.floor(Math.random() * PRIMARIES.length)]; }
-
-    function mixColors(a, b) {
-      const pair = new Set([a, b]);
-      if (pair.has('R') && pair.has('B')) return 'P';
-      if (pair.has('B') && pair.has('Y')) return 'G';
-      if (pair.has('R') && pair.has('Y')) return 'O';
-      if (pair.has('P') && pair.has('Y')) return 'brown';
-      if (pair.has('G') && pair.has('R')) return 'brown';
-      if (pair.has('O') && pair.has('B')) return 'brown';
-      return null;
-    }
-
-    function setCellImage(div, key) {
-      div.style.backgroundImage = `url(${IMAGES[key] || IMAGES.brown})`;
-    }
-
-    function formatScore(n) { return n.toLocaleString(); }
-    function setScoreDisplay(n) { scoreEl.textContent = formatScore(n); }
-
-    // Score increment animation (fast roll for 0.5s)
-    function animateScoreIncrement(addAmount, duration = 500) {
-      const startVal = score;
-      const targetVal = score + addAmount;
-      const start = performance.now();
-
-      function step(now) {
-        const t = Math.min(1, (now - start) / duration);
-        const eased = 1 - Math.pow(1 - t, 3);
-        const shown = Math.floor(startVal + addAmount * eased);
-        setScoreDisplay(shown);
-        if (t < 1) {
-          requestAnimationFrame(step);
-        } else {
-          score = targetVal;
-          setScoreDisplay(score);
-          maybeSaveHighScore();
-          if (pendingGameOverAfterPoints) {
-            pendingGameOverAfterPoints = false;
-            setTimeout(() => { triggerEndGame(); }, 100);
-          }
-        }
-      }
-      requestAnimationFrame(step);
-    }
-
-    // Floating +points: hold 250ms at center, then arc to score
-    function flyPointsToScore(addAmount, onHit) {
-      pointsAnimRunning = true;
-      const node = document.createElement('div');
-      node.className = 'float-points';
-      node.textContent = `+${addAmount}`;
-      document.body.appendChild(node);
-
-      const gridRect = grid.getBoundingClientRect();
-      const scoreRect = scoreEl.getBoundingClientRect();
-
-      const startX = gridRect.left + gridRect.width / 2;
-      const startY = gridRect.top + gridRect.height / 2;
-      const endX = scoreRect.left + scoreRect.width / 2;
-      const endY = scoreRect.top + scoreRect.height / 2;
-
-      const ctrlX = (startX + endX) / 2;
-      const ctrlY = Math.min(startY, endY) - Math.max(60, gridRect.height * 0.2);
-
-      const HOLD_MS = 250;
-      const FLY_MS  = 700;
-
-      node.style.transform = `translate(${startX}px, ${startY}px)`;
-      function quadBezier(t, p0, p1, p2) {
-        const u = 1 - t;
-        return u*u*p0 + 2*u*t*p1 + t*t*p2;
-      }
-
-      setTimeout(() => {
-        const startT = performance.now();
-        function step(now) {
-          const t = Math.min(1, (now - startT) / FLY_MS);
-          const te = Math.sin((t * Math.PI) / 2);
-          const x = quadBezier(te, startX, ctrlX, endX);
-          const y = quadBezier(te, startY, ctrlY, endY);
-          node.style.transform = `translate(${x}px, ${y}px)`;
-          node.style.opacity = String(0.6 + 0.4 * (1 - t));
-          if (t < 1) requestAnimationFrame(step);
-          else {
-            node.remove();
-            pointsAnimRunning = false;
-            if (onHit) onHit();
-          }
-        }
-        requestAnimationFrame(step);
-      }, HOLD_MS);
-    }
-
-    // Thermometer (webp)
-    function updateThermometer() {
-      const ratio = Math.max(0, Math.min(1, heat / Math.max(1, HEAT_LIMIT)));
-      const level = Math.min(4, Math.floor(ratio * 4 + 0.0001));
-      thermoEl.src = `heat${level}.webp`;
-    }
-
-    // ===== GAME OVER FLOW =====
-    function scheduleOrDeferGameOver() {
-      if (pointsAnimRunning) {
-        pendingGameOverAfterPoints = true;
-      } else {
-        setTimeout(() => { triggerEndGame(); }, 650);
-      }
-    }
-
-    // Immediately credit base coins (behind the scenes), then show modal
-    async function triggerEndGame() {
-      await maybeSaveHighScore();
-
-      const finalScore = score;
-      const baseCoins = Math.round((finalScore || 0) / 1000);
-
-      // 1) credit base coins to storage immediately so player can't lose them
-      totalCoins += baseCoins;
-      await saveCoinsSilently(); // HUD unchanged
-
-      // 2) open modal with a short 0.5s pause before visual conversion
-      openEndModal(finalScore, baseCoins);
-    }
-
-    // End modal: 0.5s pause showing final score, then visual score->coins.
-    // When it hits 0, snap back to original final score.
-    let endCoinsEarned = 0;
-    let endChoiceMade = false;
-
-    function openEndModal(finalScore, baseCoins) {
-      overlayEl.style.display = 'flex';
-      coinsEarnedEl.textContent = '0';
-      finalScoreCountEl.textContent = finalScore.toLocaleString();
-      endChoiceMade = false;
-      endCoinsEarned = baseCoins;
-
-      playAgainBtn.disabled = true;
-      watchAdBtn.disabled   = true;
-
-      const HOLD_MS = 500;   // show final score for 0.5s
-      const duration = 1200; // score -> coins visual transfer
-
-      setTimeout(() => {
-        const start = performance.now();
-        function step(now) {
-          const t = Math.min(1, (now - start) / duration);
-          const eased = 1 - Math.pow(1 - t, 3);
-
-          const coinsNow = Math.floor(endCoinsEarned * eased);
-          const scoreNow = Math.max(0, Math.floor(finalScore * (1 - eased)));
-
-          coinsEarnedEl.textContent = coinsNow.toLocaleString();
-          finalScoreCountEl.textContent = scoreNow.toLocaleString();
-
-          if (t < 1) {
-            requestAnimationFrame(step);
-          } else {
-            // conversion finished -> restore original score display
-            finalScoreCountEl.textContent = finalScore.toLocaleString();
-            playAgainBtn.disabled = false;
-            watchAdBtn.disabled   = false;
-          }
-        }
-        requestAnimationFrame(step);
-      }, HOLD_MS);
-    }
-
-    // Fly a "+amount" label from window coin to HUD; when it lands, refresh the HUD text
-    function flyCoinsToHud(displayAmount, onArrive) {
-      const node = document.createElement('div');
-      node.className = 'float-coins';
-      node.textContent = `+${displayAmount.toLocaleString()}`;
-      document.body.appendChild(node);
-
-      const modalRect = document.getElementById('coinImg').getBoundingClientRect();
-      const startX = modalRect.left + modalRect.width / 2;
-      const startY = modalRect.top  + modalRect.height / 2;
-
-      const hudRect = totalCoinsText.getBoundingClientRect();
-      const endX = hudRect.left + hudRect.width / 2;
-      const endY = hudRect.top  + hudRect.height / 2;
-
-      const ctrlX = (startX + endX) / 2;
-      const ctrlY = Math.min(startY, endY) - Math.max(60, (window.innerHeight || 800) * 0.08);
-
-      node.style.transform = `translate(${startX}px, ${startY}px)`;
-
-      const FLY_MS = 800;
-      const startT = performance.now();
-
-      function quadBezier(t, p0, p1, p2) {
-        const u = 1 - t;
-        return u*u*p0 + 2*u*t*p1 + t*t*p2;
-      }
-
-      function step(now) {
-        const t = Math.min(1, (now - startT) / FLY_MS);
-        const te = Math.sin((t * Math.PI) / 2);
-        const x = quadBezier(te, startX, ctrlX, endX);
-        const y = quadBezier(te, startY, ctrlY, endY);
-        node.style.transform = `translate(${x}px, ${y}px)`;
-        node.style.opacity = String(0.7 + 0.3 * (1 - t));
-        if (t < 1) requestAnimationFrame(step);
-        else {
-          node.remove();
-          // HUD now reflects whatever is already in storage (base or base+bonus)
-          totalCoinsText.textContent = totalCoins.toLocaleString();
-          coinsHudEl.animate(
-            [{ transform: 'scale(1)' }, { transform: 'scale(1.08)' }, { transform: 'scale(1)'}],
-            { duration: 240, easing: 'ease-out' }
-          );
-          if (onArrive) onArrive();
-        }
-      }
-      requestAnimationFrame(step);
-    }
-
-    // Choice handlers
-    playAgainBtn.addEventListener('click', () => {
-      if (endChoiceMade) return;
-      endChoiceMade = true;
-      playAgainBtn.disabled = true;
-      watchAdBtn.disabled   = true;
-
-      // Visually show +N (base already credited silently)
-      flyCoinsToHud(endCoinsEarned, () => {
-        overlayEl.style.display = 'none';
-        initialize();
-      });
-    });
-
-    watchAdBtn.addEventListener('click', async () => {
-      if (endChoiceMade) return;
-      endChoiceMade = true;
-      playAgainBtn.disabled = true;
-      watchAdBtn.disabled   = true;
-
-      // Simulate ad complete (replace with SDK callback)
-      setTimeout(async () => {
-        const bonus = endCoinsEarned * 2;     // +2N in storage
-        totalCoins += bonus;
-        await saveCoinsSilently();
-
-        const visualAmount = endCoinsEarned * 3; // show +3N flying
-        flyCoinsToHud(visualAmount, () => {
-          overlayEl.style.display = 'none';
-          initialize();
-        });
-      }, 350);
-    });
-
-    // ===== Other game utilities =====
-    function updateClearedDisplay() {
-      clearedEl.textContent = `Blocks Cleared: ${clearedBlocks}`;
-      clearedProgressEl.textContent = `${Math.min(clearedBlocks, BLOCK_CLEAR_LIMIT)}/${BLOCK_CLEAR_LIMIT}`;
-    }
-
-    function clearHighlights() {
-      for (let r = 0; r < gridSize; r++) {
-        for (let c = 0; c < gridSize; c++) {
-          const cell = cells[r][c];
-          if (cell) { cell.classList.remove('highlight'); cell.textContent = ''; }
+    function applyActiveSetImages(){
+      // If activeSet >= 0, map to numbered images:
+      // order per row: [R, Y, B, O, P, G, brown]
+      if (activeSet >= 0){
+        const base = activeSet*7 + 1;
+        if (base >= 1 && base+6 <= 140){
+          IMAGES = {
+            R: `${base}.webp`,
+            Y: `${base+1}.webp`,
+            B: `${base+2}.webp`,
+            O: `${base+3}.webp`,
+            P: `${base+4}.webp`,
+            G: `${base+5}.webp`,
+            brown: `${base+6}.webp`,
+          };
         }
       }
     }
 
-    function createCell(r, c, color) {
-      const div = document.createElement('div');
-      div.className = 'cell';
-      setCellImage(div, color);
-      const { top, left } = getPosition(r, c);
-      div.style.transform = `translate(${left}px, ${top}px)`;
-      div.dataset.r = r; div.dataset.c = c; div.dataset.color = color;
-      grid.appendChild(div);
-      return div;
-    }
-
-    function flood(r, c, color) {
-      const result = [];
-      const visited = Array.from({ length: gridSize }, () => Array(gridSize).fill(false));
-      const stack = [[r, c]];
-      while (stack.length) {
-        const [cr, cc] = stack.pop();
-        if (cr < 0 || cc < 0 || cr >= gridSize || cc >= gridSize) continue;
-        if (visited[cr][cc] || board[cr][cc] !== color) continue;
-        visited[cr][cc] = true;
-        result.push([cr, cc]);
-        stack.push([cr - 1, cc], [cr + 1, cc], [cr, cc - 1], [cr, cc + 1]);
-      }
-      return result;
-    }
-
-    function animateFall() {
-      for (let c = 0; c < gridSize; c++) {
-        let stack = [];
-        for (let r = gridSize - 1; r >= 0; r--) {
-          if (board[r][c] !== null) stack.push([board[r][c], cells[r][c]]);
-        }
-        for (let r = gridSize - 1; r >= 0; r--) {
-          let entry = stack.shift();
-          if (entry) {
-            const [color, cell] = entry;
-            board[r][c] = color;
-            cells[r][c] = cell;
-            const { top, left } = getPosition(r, c);
-            cell.dataset.r = r; cell.dataset.c = c;
-            cell.style.transform = `translate(${left}px, ${top}px)`;
-          } else {
-            const color = randomPrimary();
-            board[r][c] = color;
-            const cell = createCell(-1, c, color);
-            cells[r][c] = cell;
-            cell.dataset.r = r; cell.dataset.c = c;
-            const { top, left } = getPosition(r, c);
-            setTimeout(() => {
-              cell.style.transform = `translate(${left}px, ${top}px)`;
-              cell.dataset.r = r; cell.dataset.c = c;
-            }, 50);
-          }
-        }
-      }
-    }
-
-    function addHeat(delta) {
-      heat += delta;
-      heatEl.textContent = `Heat: ${heat}`;
-      updateThermometer();
-      if (!gameOverScheduled && heat >= HEAT_LIMIT) {
-        gameOverScheduled = true;
-        if (pointsAnimRunning) {
-          pendingGameOverAfterPoints = true;
-        } else {
-          setTimeout(() => { triggerEndGame(); }, 650);
-        }
-      }
-    }
-
-    function initialize() {
-      board = []; cells = []; selected = null;
-      score = 0; heat = 0; brownStreak = 0; clearedBlocks = 0;
-      inputLocked = false; gameOverScheduled = false;
-      pointsAnimRunning = false; pendingGameOverAfterPoints = false;
-
-      grid.innerHTML = '';
-      setScoreDisplay(0);
-      updateThermometer();
-      updateClearedDisplay();
-
-      for (let r = 0; r < gridSize; r++) {
-        const row = [], cellRow = [];
-        for (let c = 0; c < gridSize; c++) {
-          const color = randomPrimary();
-          row.push(color);
-          const cell = createCell(r, c, color);
-          cellRow.push(cell);
-        }
-        board.push(row); cells.push(cellRow);
-      }
-      offsetScoreUnderTopLeftHUD();
-    }
-
-    // Make sure the large score clears the fixed crown + coins HUD
-    function offsetScoreUnderTopLeftHUD() {
-      const crownRect = bestEl.getBoundingClientRect();
-      const coinsRect = coinsHudEl.getBoundingClientRect();
-      const lower = Math.max(crownRect.bottom, coinsRect.bottom);
-      const offset = lower + 14;
-      const topInset = parseFloat(getComputedStyle(document.body).paddingTop) || 0;
-      scoreEl.style.marginTop = Math.max(12, offset - topInset) + 'px';
-    }
-
-    // ===== Responsive board sizing =====
-    function resizeBoard() {
-      const padding = 32;
-      const vw = window.innerWidth || 360;
-      const target = Math.max(280, Math.min(vw - padding * 2, 720));
-      const { gap } = sizes();
-      const cell = Math.floor((target - gap * 7) / 8);
-      document.documentElement.style.setProperty('--cell-size', cell + 'px');
-      document.documentElement.style.setProperty('--board-w',
-        `calc(${cell}px * 8 + ${gap}px * 7)`);
-
-      const thermo = document.getElementById('thermo');
-      const ice = document.getElementById('ice');
-      if (thermo && ice) {
-        thermo.style.height = Math.round(cell * 1.2) + 'px';
-        ice.style.height = Math.round(cell * 1.3) + 'px';
-      }
-
-      offsetScoreUnderTopLeftHUD();
-    }
-    window.addEventListener('resize', resizeBoard, { passive: true });
-    window.addEventListener('orientationchange', () => { resizeBoard(); offsetScoreUnderTopLeftHUD(); });
-
-    // ===== Nearest-tile tap targeting + debounce (Pointer Events) =====
-    let lastPointerTime = 0;
-    let downPos = null;
-    const DEBOUNCE_MS = 220;
-    const TAP_MOVE_TOL = 10; // px
-
-    function nearestCellFromPoint(clientX, clientY) {
-      const rect = grid.getBoundingClientRect();
-      const x = clientX - rect.left;
-      const y = clientY - rect.top;
-      const { cell, gap } = sizes();
-      let c = Math.round((x - cell / 2) / (cell + gap));
-      let r = Math.round((y - cell / 2) / (cell + gap));
-      c = Math.max(0, Math.min(gridSize - 1, c));
-      r = Math.max(0, Math.min(gridSize - 1, r));
-      return [r, c];
-    }
-
-    grid.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0) return;
-      downPos = { x: e.clientX, y: e.clientY };
-    }, { passive: true });
-
-    grid.addEventListener('pointerup', (e) => {
-      const now = performance.now();
-      if (now - lastPointerTime < DEBOUNCE_MS) return;
-
-      const moved = downPos ? Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y) : 0;
-      downPos = null;
-      if (moved > TAP_MOVE_TOL) return;
-
-      lastPointerTime = now;
-
-      const [r, c] = nearestCellFromPoint(e.clientX, e.clientY);
-      e.preventDefault();
-      handleClick(r, c);
-    }, { passive: false });
-
-    grid.addEventListener('click', (e) => e.preventDefault(), { passive: false });
-
-    // ===== Main game click logic (with +points hold & arc) =====
-    function handleClick(r, c) {
-      if (inputLocked || gameOverScheduled) return;
-      clearHighlights();
-
-      if (!selected) {
-        selected = [r, c];
-        const color = board[r][c];
-        const group = flood(r, c, color);
-        group.forEach(([gr, gc]) => {
-          const cellEl = cells[gr][gc];
-          if (cellEl) { cellEl.classList.add('highlight'); cellEl.textContent = group.length; }
-        });
-        return;
-      }
-
-      const [sr, sc] = selected;
-      selected = null;
-
-      const color1 = board[sr][sc];
-      const color2 = board[r][c];
-      const mix = mixColors(color1, color2);
-
-      if (mix === 'brown') {
-        const group1 = flood(sr, sc, color1);
-        const group2 = flood(r, c, color2);
-        const g1 = group1.length, g2 = group2.length;
-        const total = g1 + g2;
-
-        const addAmount = g1 * g2 * MULT_BROWN;
-        flyPointsToScore(addAmount, () => animateScoreIncrement(addAmount));
-
-        clearedBlocks += total;
-        updateClearedDisplay();
-
-        const cellsToRemove = [];
-        for (const [rr, cc] of group1.concat(group2)) {
-          const cellEl = cells[rr][cc];
-          if (!cellEl) continue;
-          cellEl.classList.remove('highlight'); cellEl.textContent = '';
-          setCellImage(cellEl, 'brown');
-          board[rr][cc] = null;
-          cellsToRemove.push([rr, cc]);
-        }
-
-        inputLocked = true;
-
-        setTimeout(() => {
-          for (const [rr, cc] of cellsToRemove) {
-            const el = cells[rr][cc];
-            if (el) el.classList.add('fadeOut');
-          }
-        }, BROWN_FLASH_MS);
-
-        setTimeout(() => {
-          for (const [rr, cc] of cellsToRemove) {
-            const el = cells[rr][cc];
-            if (el && el.parentNode === grid) el.remove();
-            cells[rr][cc] = null;
-          }
-
-          if (g1 + g2 >= BROWN_THRESHOLD || ++brownStreak >= BROWN_STREAK_LIMIT) {
-            heat = 0; brownStreak = 0; updateThermometer();
-          }
-
-          if (clearedBlocks >= BLOCK_CLEAR_LIMIT) {
-            heat = 0; clearedBlocks = 0; updateClearedDisplay(); updateThermometer();
-          }
-
-          animateFall();
-          inputLocked = false;
-        }, BROWN_FLASH_MS + 420);
-
-      } else if (!SECONDARIES.includes(color1) && !SECONDARIES.includes(color2) && mix) {
-        const group1 = flood(sr, sc, color1);
-        const group2 = flood(r, c, color2);
-        const g1 = group1.length, g2 = group2.length;
-
-        const addAmount = g1 * g2 * MULT_SECONDARY;
-        flyPointsToScore(addAmount, () => animateScoreIncrement(addAmount));
-
-        for (const [rr, cc] of group1.concat(group2)) {
-          board[rr][cc] = mix;
-          const cellEl = cells[rr][cc];
-          setCellImage(cellEl, mix);
-          cellEl.dataset.color = mix;
-        }
-
-        brownStreak = 0;
-        addHeat(1);
-
-      } else {
-        if (color1 !== color2 && mix !== 'brown' && mix !== null) {
-          brownStreak = 0;
-          addHeat(1);
-        }
-      }
-    }
-
-    // ===== Boot sequence =====
-    function preloadImages() {
-      const sources = [...Object.values(IMAGES), ...UI_IMAGES];
-      return Promise.all(sources.map(src => new Promise(res => {
-        const img = new Image(); img.onload = res; img.onerror = res; img.src = src;
+    function preloadImages(){
+      const srcs = [...Object.values(IMAGES), ...UI_IMAGES];
+      return Promise.all(srcs.map(src => new Promise(res=>{
+        const i = new Image(); i.onload = res; i.onerror = res; i.src = src;
       })));
     }
 
-    async function start() {
-      resizeBoard();
-      await loadHighScore();
-      await loadCoins();
-      initialize();
+    /************ UTIL ************/
+    function sizes(){
+      const rs = getComputedStyle(document.documentElement);
+      return { cell: parseInt(rs.getPropertyValue('--cell-size'))||60, gap: parseInt(rs.getPropertyValue('--gap'))||5 };
+    }
+    function getPosition(r,c){
+      const {cell,gap} = sizes(); return { top: r*(cell+gap), left: c*(cell+gap) };
+    }
+    function setCellImage(div,key){ div.style.backgroundImage = `url(${IMAGES[key] || IMAGES.brown})`; }
+    function formatScore(n){ return n.toLocaleString(); }
+    function setScoreDisplay(n){ scoreEl.textContent = formatScore(n); }
+
+    function randomPrimary(){ return PRIMARIES[Math.floor(Math.random()*PRIMARIES.length)]; }
+
+    function mixColors(a,b){
+      const s = new Set([a,b]);
+      if (s.has('R') && s.has('B')) return 'P';
+      if (s.has('B') && s.has('Y')) return 'G';
+      if (s.has('R') && s.has('Y')) return 'O';
+      if (s.has('P') && s.has('Y')) return 'brown';
+      if (s.has('G') && s.has('R')) return 'brown';
+      if (s.has('O') && s.has('B')) return 'brown';
+      return null;
     }
 
-    preloadImages().then(start);
+    function hasAnyMove(){
+      const cnt = {R:0,B:0,Y:0,P:0,G:0,O:0};
+      for (let r=0;r<gridSize;r++){
+        for (let c=0;c<gridSize;c++){
+          const v = board[r][c];
+          if (!v || v==='brown') continue;
+          if (cnt[v]!=null) cnt[v]++;
+        }
+      }
+      const prim = (cnt.R>0)+(cnt.B>0)+(cnt.Y>0);
+      if (prim>=2) return true;
+      if (cnt.P>0 && cnt.Y>0) return true;
+      if (cnt.G>0 && cnt.R>0) return true;
+      if (cnt.O>0 && cnt.B>0) return true;
+      return false;
+    }
+    function checkEndIfNoMoves(){
+      if (!gameOverScheduled && !hasAnyMove()){
+        gameOverScheduled = true;
+        setTimeout(triggerEndGame, 300);
+      }
+    }
+
+    /************ UI ADJUST ************/
+    function offsetScoreUnderTopLeftHUD(){
+      const crownRect = document.getElementById('best').getBoundingClientRect();
+      const coinsRect = document.getElementById('coinsHud').getBoundingClientRect();
+      const lower = Math.max(crownRect.bottom, coinsRect.bottom);
+      const offset = lower + 14;
+      const topInset = parseFloat(getComputedStyle(document.body).paddingTop)||0;
+      scoreEl.style.marginTop = Math.max(12, offset - topInset) + 'px';
+    }
+    function resizeBoard(){
+      const padding = 32, vw = window.innerWidth || 360;
+      const target = Math.max(280, Math.min(vw - padding*2, 720));
+      const {gap} = sizes();
+      const cell = Math.floor((target - gap*7)/8);
+      document.documentElement.style.setProperty('--cell-size', cell+'px');
+      document.documentElement.style.setProperty('--board-w', `calc(${cell}px*8 + ${gap}px*7)`);
+      // scale HUD images
+      document.getElementById('thermo').style.height = Math.round(cell*1.2)+'px';
+      document.getElementById('ice').style.height = Math.round(cell*1.3)+'px';
+      offsetScoreUnderTopLeftHUD();
+    }
+    window.addEventListener('resize', resizeBoard, {passive:true});
+    window.addEventListener('orientationchange', ()=>{ resizeBoard(); offsetScoreUnderTopLeftHUD(); });
+
+    /************ CLEARED PROGRESS ************/
+    function renderClearedProgress(){
+      const limit = getBlockClearLimit(score);
+      numValEl.textContent = Math.min(clearedBlocks, limit).toString();
+      denValEl.textContent = limit.toString();
+    }
+    function maybeFlashDenom(newLimit){
+      if (newLimit !== lastShownLimit){
+        lastShownLimit = newLimit;
+        denValEl.classList.remove('denomFlash');
+        // reflow to restart animation
+        void denValEl.offsetWidth;
+        denValEl.classList.add('denomFlash');
+        // auto remove after 1s (optional)
+        setTimeout(()=>denValEl.classList.remove('denomFlash'), 1000);
+      }
+    }
+
+    /************ BOARD OPS ************/
+    function createCell(r,c,key){
+      const d = document.createElement('div');
+      d.className='cell'; setCellImage(d,key);
+      const {top,left}=getPosition(r,c);
+      d.style.transform = `translate(${left}px, ${top}px)`;
+      d.dataset.r=r; d.dataset.c=c; d.dataset.color=key;
+      grid.appendChild(d); return d;
+    }
+    function flood(r,c,key){
+      const out=[], seen=Array.from({length:gridSize},()=>Array(gridSize).fill(false));
+      const st=[[r,c]];
+      while(st.length){
+        const [cr,cc]=st.pop();
+        if (cr<0||cc<0||cr>=gridSize||cc>=gridSize) continue;
+        if (seen[cr][cc]||board[cr][cc]!==key) continue;
+        seen[cr][cc]=true; out.push([cr,cc]);
+        st.push([cr-1,cc],[cr+1,cc],[cr,cc-1],[cr,cc+1]);
+      }
+      return out;
+    }
+
+    function animateFall(){
+      for (let c=0;c<gridSize;c++){
+        let stack=[];
+        for (let r=gridSize-1;r>=0;r--) if (board[r][c]!==null) stack.push([board[r][c],cells[r][c]]);
+        for (let r=gridSize-1;r>=0;r--){
+          const entry = stack.shift();
+          if (entry){
+            const [key,cell] = entry;
+            board[r][c]=key; cells[r][c]=cell;
+            const {top,left}=getPosition(r,c);
+            cell.dataset.r=r; cell.dataset.c=c;
+            cell.style.transform = `translate(${left}px, ${top}px)`;
+          }else{
+            const key = randomPrimary();
+            board[r][c]=key; const cell=createCell(-1,c,key);
+            cells[r][c]=cell; cell.dataset.r=r; cell.dataset.c=c;
+            const {top,left}=getPosition(r,c);
+            setTimeout(()=>{ cell.style.transform=`translate(${left}px, ${top}px)`; },50);
+          }
+        }
+      }
+      setTimeout(checkEndIfNoMoves, 120);
+    }
+
+    function updateThermometer(){
+      const ratio = Math.max(0,Math.min(1, heat/Math.max(1,HEAT_LIMIT)));
+      const level = Math.min(4, Math.floor(ratio*4 + 0.0001));
+      thermoEl.src = `heat${level}.webp`;
+    }
+
+    function clearHighlights(){
+      for (let r=0;r<gridSize;r++) for (let c=0;c<gridSize;c++){
+        const cell=cells[r][c]; if (cell){ cell.classList.remove('highlight'); cell.textContent=''; }
+      }
+    }
+
+    /************ INPUT ************/
+    let lastPointerTime=0, downPos=null;
+    const DEBOUNCE_MS=220, TAP_MOVE_TOL=10;
+    function nearestCellFromPoint(x,y){
+      const rect=grid.getBoundingClientRect();
+      const rx=x-rect.left, ry=y-rect.top;
+      const {cell,gap}=sizes();
+      let c=Math.round((rx - cell/2)/(cell+gap));
+      let r=Math.round((ry - cell/2)/(cell+gap));
+      c=Math.max(0,Math.min(gridSize-1,c)); r=Math.max(0,Math.min(gridSize-1,r));
+      return [r,c];
+    }
+    grid.addEventListener('pointerdown',e=>{ if(e.button!==0)return; downPos={x:e.clientX,y:e.clientY}; },{passive:true});
+    grid.addEventListener('pointerup',e=>{
+      const now=performance.now();
+      if (now-lastPointerTime<DEBOUNCE_MS) return;
+      const moved=downPos?Math.hypot(e.clientX-downPos.x,e.clientY-downPos.y):0; downPos=null;
+      if (moved>TAP_MOVE_TOL) return;
+      lastPointerTime=now;
+      const [r,c]=nearestCellFromPoint(e.clientX,e.clientY);
+      e.preventDefault(); handleClick(r,c);
+    },{passive:false});
+    grid.addEventListener('click',e=>e.preventDefault(),{passive:false});
+
+    /************ SCORING / ANIMS ************/
+    function flyPointsToScore(add, onHit){
+      pointsAnimRunning=true;
+      const node=document.createElement('div'); node.className='float-points'; node.textContent=`+${add}`;
+      document.body.appendChild(node);
+      const g=grid.getBoundingClientRect(), s=scoreEl.getBoundingClientRect();
+      const startX=g.left+g.width/2, startY=g.top+g.height/2;
+      const endX=s.left+s.width/2, endY=s.top+s.height/2;
+      const ctrlX=(startX+endX)/2, ctrlY=Math.min(startY,endY)-Math.max(60,g.height*0.2);
+      const HOLD=250, FLY=700;
+      node.style.transform=`translate(${startX}px,${startY}px)`;
+      const bez=(t,p0,p1,p2)=>{const u=1-t; return u*u*p0+2*u*t*p1+t*t*p2;};
+      setTimeout(()=>{
+        const t0=performance.now();
+        function step(tn){
+          const t=Math.min(1,(tn-t0)/FLY), te=Math.sin((t*Math.PI)/2);
+          node.style.transform=`translate(${bez(te,startX,ctrlX,endX)}px,${bez(te,startY,ctrlY,endY)}px)`;
+          node.style.opacity=String(0.6+0.4*(1-t));
+          if (t<1) requestAnimationFrame(step); else { node.remove(); pointsAnimRunning=false; onHit&&onHit(); }
+        }
+        requestAnimationFrame(step);
+      },HOLD);
+    }
+
+    // during the number roll, detect if denominator increases and flash it immediately
+    function animateScoreIncrement(add, dur=500){
+      const start=score, target=score+add, t0=performance.now();
+      let flashed = false;
+      function step(tn){
+        const t=Math.min(1,(tn-t0)/dur), e=1-Math.pow(1-t,3);
+        const shown = Math.floor(start + add*e);
+        setScoreDisplay(shown);
+        const limitNow = getBlockClearLimit(shown);
+        if (!flashed && limitNow !== lastShownLimit){
+          maybeFlashDenom(limitNow);
+          flashed = true;
+        }
+        if (t<1){ requestAnimationFrame(step); }
+        else {
+          score=target; setScoreDisplay(score);
+          const finalLimit = getBlockClearLimit(score);
+          maybeFlashDenom(finalLimit);
+          renderClearedProgress();
+          maybeSaveHighScore();
+          if (pendingGameOverAfterPoints){ pendingGameOverAfterPoints=false; setTimeout(triggerEndGame,100); }
+        }
+      }
+      requestAnimationFrame(step);
+    }
+
+    function addHeat(d){
+      heat+=d; updateThermometer();
+      if (!gameOverScheduled && heat>=HEAT_LIMIT){
+        gameOverScheduled=true;
+        pointsAnimRunning ? pendingGameOverAfterPoints=true : setTimeout(triggerEndGame,650);
+      }
+    }
+
+    /************ END GAME ************/
+    async function maybeSaveHighScore(){
+      if (score>highScore){
+        highScore=score; bestScoreText.textContent=highScore.toLocaleString();
+        await Storage.set(HIGH_KEY,String(highScore));
+      }
+    }
+    async function triggerEndGame(){
+      await maybeSaveHighScore();
+      const finalScore=score;
+      const baseCoins=Math.round((finalScore||0)/1000);
+      totalCoins += baseCoins; // immediate credit
+      await Storage.set(COINS_KEY,String(totalCoins));
+      openEndModal(finalScore, baseCoins);
+    }
+    function openEndModal(finalScore,baseCoins){
+      overlayEl.style.display='flex';
+      coinsEarnedEl.textContent='0';
+      finalScoreCountEl.textContent=finalScore.toLocaleString();
+      playAgainBtn.disabled=true; watchAdBtn.disabled=true;
+
+      setTimeout(()=>{
+        const t0=performance.now(), D=1200, total=baseCoins;
+        function step(tn){
+          const t=Math.min(1,(tn-t0)/D), e=1-Math.pow(1-t,3);
+          coinsEarnedEl.textContent = Math.floor(total*e).toLocaleString();
+          finalScoreCountEl.textContent = Math.max(0,Math.floor(finalScore*(1-e))).toLocaleString();
+          if (t<1) requestAnimationFrame(step);
+          else { finalScoreCountEl.textContent = finalScore.toLocaleString(); playAgainBtn.disabled=false; watchAdBtn.disabled=false; }
+        }
+        requestAnimationFrame(step);
+      },500);
+    }
+    function flyCoinsToHud(amount,onArrive){
+      const node=document.createElement('div'); node.className='float-coins'; node.textContent=`+${amount.toLocaleString()}`;
+      document.body.appendChild(node);
+      const from=document.getElementById('coinImg').getBoundingClientRect(), to=totalCoinsText.getBoundingClientRect();
+      const sx=from.left+from.width/2, sy=from.top+from.height/2, ex=to.left+to.width/2, ey=to.top+to.height/2;
+      const cx=(sx+ex)/2, cy=Math.min(sy,ey)-Math.max(60,(window.innerHeight||800)*0.08);
+      const bez=(t,p0,p1,p2)=>{const u=1-t; return u*u*p0+2*u*t*p1+t*t*p2;};
+      const t0=performance.now(), D=800;
+      node.style.transform=`translate(${sx}px,${sy}px)`;
+      function step(tn){
+        const t=Math.min(1,(tn-t0)/D), e=Math.sin((t*Math.PI)/2);
+        node.style.transform=`translate(${bez(e,sx,cx,ex)}px,${bez(e,sy,cy,ey)}px)`; node.style.opacity=String(0.7+0.3*(1-t));
+        if (t<1) requestAnimationFrame(step); else { node.remove(); totalCoinsText.textContent=totalCoins.toLocaleString(); onArrive&&onArrive(); }
+      }
+      requestAnimationFrame(step);
+    }
+    playAgainBtn.addEventListener('click',()=>{
+      playAgainBtn.disabled=true; watchAdBtn.disabled=true;
+      flyCoinsToHud(Math.round(score/1000),()=>{ overlayEl.style.display='none'; initialize(); });
+    });
+    watchAdBtn.addEventListener('click', async ()=>{
+      playAgainBtn.disabled=true; watchAdBtn.disabled=true;
+      setTimeout(async ()=>{
+        const extra=Math.round(score/1000)*2;
+        totalCoins += extra; await Storage.set(COINS_KEY,String(totalCoins));
+        flyCoinsToHud(Math.round(score/1000)*3,()=>{ overlayEl.style.display='none'; initialize(); });
+      },350);
+    });
+
+    /************ GAME LOOP ************/
+    function initialize(){
+      board=[]; cells=[]; selected=null;
+      score=0; heat=0; brownStreak=0; clearedBlocks=0;
+      inputLocked=false; gameOverScheduled=false;
+      pointsAnimRunning=false; pendingGameOverAfterPoints=false;
+
+      lastShownLimit = getBlockClearLimit(0);
+      renderClearedProgress();
+      updateThermometer();
+
+      grid.innerHTML=''; setScoreDisplay(0);
+
+      for (let r=0;r<gridSize;r++){
+        const row=[], crow=[];
+        for (let c=0;c<gridSize;c++){
+          const k=randomPrimary(); row.push(k);
+          const d=createCell(r,c,k); crow.push(d);
+        }
+        board.push(row); cells.push(crow);
+      }
+      offsetScoreUnderTopLeftHUD();
+      setTimeout(checkEndIfNoMoves,60);
+    }
+
+    function handleClick(r,c){
+      if (inputLocked || gameOverScheduled) return;
+      clearHighlights();
+
+      if (!selected){
+        selected=[r,c];
+        const k=board[r][c], group=flood(r,c,k);
+        group.forEach(([gr,gc])=>{ const el=cells[gr][gc]; if(el){ el.classList.add('highlight'); el.textContent=group.length; }});
+        return;
+      }
+      const [sr,sc]=selected; selected=null;
+      const c1=board[sr][sc], c2=board[r][c], mix=mixColors(c1,c2);
+
+      if (mix==='brown'){
+        const g1=flood(sr,sc,c1), g2=flood(r,c,c2);
+        const add=g1.length*g2.length*MULT_BROWN;
+        flyPointsToScore(add,()=>animateScoreIncrement(add));
+
+        const toRemove=[];
+        for (const [rr,cc] of g1.concat(g2)){
+          const el=cells[rr][cc]; if (!el) continue;
+          el.classList.remove('highlight'); el.textContent='';
+          setCellImage(el,'brown'); board[rr][cc]=null; toRemove.push([rr,cc]);
+        }
+        clearedBlocks += g1.length + g2.length;
+        renderClearedProgress();
+
+        inputLocked=true;
+        setTimeout(()=>{ for(const [rr,cc] of toRemove){ const el=cells[rr][cc]; if(el) el.classList.add('fadeOut'); } }, BROWN_FLASH_MS);
+        setTimeout(()=>{
+          for(const [rr,cc] of toRemove){ const el=cells[rr][cc]; if(el&&el.parentNode===grid) el.remove(); cells[rr][cc]=null; }
+
+          // Heat/brown streak logic
+          if (g1.length+g2.length>=BROWN_THRESHOLD || ++brownStreak>=BROWN_STREAK_LIMIT){ heat=0; brownStreak=0; updateThermometer(); }
+
+          // Clear heat when enough blocks cleared for current dynamic limit
+          const curLimit = getBlockClearLimit(score);
+          if (clearedBlocks >= curLimit){
+            heat = 0;
+            clearedBlocks = 0;
+            updateThermometer();
+            renderClearedProgress();
+          }
+
+          animateFall();
+          inputLocked=false;
+        }, BROWN_FLASH_MS+420);
+
+      } else if (!SECONDARIES.includes(c1) && !SECONDARIES.includes(c2) && mix){
+        const g1=flood(sr,sc,c1), g2=flood(r,c,c2);
+        const add=g1.length*g2.length*MULT_SECONDARY;
+        flyPointsToScore(add,()=>animateScoreIncrement(add));
+        for (const [rr,cc] of g1.concat(g2)){ board[rr][cc]=mix; const el=cells[rr][cc]; setCellImage(el,mix); el.dataset.color=mix; }
+        brownStreak=0; addHeat(1);
+      } else {
+        if (c1!==c2 && mix!=='brown' && mix!==null){ brownStreak=0; addHeat(1); }
+      }
+    }
+
+    /************ BOOT ************/
+    function fmt(n){ return Number(n||0).toLocaleString(); }
+    async function loadMeta(){
+      highScore = Math.max(0, parseInt(await Storage.get(HIGH_KEY)||'0',10) || 0);
+      totalCoins = Math.max(0, parseInt(await Storage.get(COINS_KEY)||'0',10) || 0);
+      activeSet  = parseInt(await Storage.get(ACTIVE_SET_KEY)||'-1',10);
+      bestScoreText.textContent = fmt(highScore);
+      totalCoinsText.textContent = fmt(totalCoins);
+    }
+
+    (async function start(){
+      resizeBoard();
+      await loadMeta();
+      applyActiveSetImages();
+      await preloadImages();
+      initialize();
+    })();
   </script>
 </body>
 </html>
