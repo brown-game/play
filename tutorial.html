@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<title>BROWN — Tutorial</title>
+<style>
+  :root{ --cell:60px; --gap:6px; --board-w:calc(var(--cell)*8 + var(--gap)*7); }
+  body{ margin:0; background:#000; color:#fff; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+        display:flex; flex-direction:column; align-items:center; padding:env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
+        -webkit-tap-highlight-color:transparent; user-select:none; }
+  #home{ position:fixed; top:calc(10px + env(safe-area-inset-top)); right:16px; z-index:30; }
+  #home img{ height:36px; width:auto; display:block; }
+
+  .stageWrap{ position:relative; margin-top:54px; display:grid; place-items:center; width:100%; }
+  .sideArrow{ position:absolute; top:50%; transform:translateY(-50%); background:none; border:none; padding:0; cursor:pointer;
+              height:clamp(44px,7vw,56px); width:clamp(44px,7vw,56px); z-index:25; }
+  .sideArrow img{ height:100%; width:100%; display:block; }
+  #arrowLeft{ left:max(6px,2vw); display:none; }
+  #arrowRight{ right:max(6px,2vw); }
+  #checkBtn{ right:max(6px,2vw); display:none; } /* visible on slide 3 */
+
+  .stage{ width:var(--board-w); }
+  #hud{ width:var(--board-w); display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+  #thermo{ height:calc(var(--cell)*1.1); width:auto; }
+  #ice{ height:calc(var(--cell)*1.25); width:auto; }
+  #heatCount{ font-weight:900; font-size:clamp(22px,5.6vw,34px); letter-spacing:.5px; text-shadow:0 0 3px #000,0 0 6px #000; }
+  #board{ position:relative; width:var(--board-w); height:calc(var(--cell)*8 + var(--gap)*7); }
+  .cell{ position:absolute; width:var(--cell); height:var(--cell); border-radius:calc(var(--cell)*0.2);
+         background:center/cover no-repeat; box-shadow:0 0 0 2px #000 inset; transform:translate(var(--x), var(--y));
+         display:flex; align-items:center; justify-content:center; font-weight:900; font-size:clamp(18px,3.8vw,24px);
+         color:#fff; text-shadow:1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000,0 0 6px #000; }
+  .highlight{ outline:3px solid #fff; box-shadow:0 0 9px #fff; z-index:2; }
+  #fingerWrap{ position:absolute; left:0; top:0; z-index:20; transform:translate(-1000px,-1000px);
+               transition:transform 1000ms ease-in-out; pointer-events:none; }
+  #fingerInner{ width:clamp(40px,7vw,54px); height:clamp(40px,7vw,54px); background:center/contain no-repeat url("Images/finger.webp"); }
+  .tapPulse{ animation:fingerPulse .55s ease-out 1; }
+  @keyframes fingerPulse{ 0%{transform:scale(1); filter:drop-shadow(0 0 6px rgba(255,255,255,.5));}
+                          100%{transform:scale(.92); filter:drop-shadow(0 0 0 rgba(255,255,255,0));} }
+  .caption{ width:min(92vw,var(--board-w)); margin:18px auto 12px; font-size:clamp(18px,4.8vw,24px); line-height:1.35;
+            font-weight:800; text-align:center; text-shadow:0 0 3px #000,0 0 6px #000; min-height:2.4em; }
+  .falling{ transition: transform 340ms ease-out; will-change: transform; }
+  @media (max-width:800px){ :root{ --gap:5px; } }
+</style>
+</head>
+<body>
+<a id="home" href="index.html" aria-label="Home"><img src="Images/home.webp" alt="Home"></a>
+
+<div class="stageWrap">
+  <!-- Back arrow (flip horizontally) -->
+  <button id="arrowLeft" class="sideArrow" aria-label="Previous">
+    <img src="Images/arrow.webp" alt="Prev" style="transform:scaleX(-1);">
+  </button>
+
+  <!-- Next arrow (slides 1 & 2); hidden on slide 3 -->
+  <button id="arrowRight" class="sideArrow" aria-label="Next">
+    <img src="Images/arrow.webp" alt="Next">
+  </button>
+
+  <!-- Slide 3 completion button -->
+  <button id="checkBtn" class="sideArrow" aria-label="Finish">
+    <img src="Images/check.webp" alt="Finish">
+  </button>
+
+  <div class="stage">
+    <div id="hud">
+      <img id="thermo" src="Images/heat0.webp" alt="Thermometer">
+      <div id="heatCount"><span id="num">0</span>/<span id="den">25</span></div>
+      <img id="ice" src="Images/ice.webp" alt="Ice">
+    </div>
+    <div id="board"></div>
+  </div>
+</div>
+
+<div class="caption" id="caption"></div>
+
+<div id="fingerWrap" aria-hidden="true"><div id="fingerInner"></div></div>
+
+<script>
+/* assets */
+const IMG = { R:'Images/1.webp', Y:'Images/2.webp', B:'Images/3.webp', O:'Images/4.webp', G:'Images/5.webp', P:'Images/6.webp', brown:'Images/7.webp' };
+const THERMO = ['Images/heat0.webp','Images/heat1.webp','Images/heat2.webp','Images/heat3.webp','Images/heat4.webp'];
+const PRIMARIES = ['R','Y','B']; // <-- single declaration
+
+/* dom */
+const boardEl = document.getElementById('board');
+const fingerWrap = document.getElementById('fingerWrap');
+const fingerInner = document.getElementById('fingerInner');
+const thermo = document.getElementById('thermo');
+const numEl = document.getElementById('num');
+const denEl = document.getElementById('den');
+const captionEl = document.getElementById('caption');
+const arrowL = document.getElementById('arrowLeft');
+const arrowR = document.getElementById('arrowRight');
+const checkBtn = document.getElementById('checkBtn');
+
+/* helpers */
+function sizes(){ const rs=getComputedStyle(document.documentElement);
+  return {cell:parseInt(rs.getPropertyValue('--cell'))||60, gap:parseInt(rs.getPropertyValue('--gap'))||6}; }
+function xy(r,c){ const {cell,gap}=sizes(); return {x:c*(cell+gap), y:r*(cell+gap)}; }
+function pos(r,c,extraY=0){ const {x,y}=xy(r,c); return `translate(${x}px, ${y+extraY}px)`; }
+
+const gridSize=8, cells=[];
+function makeCell(r,c,key){
+  const d=document.createElement('div');
+  d.className='cell';
+  d.style.transform=pos(r,c);
+  d.dataset.r=r; d.dataset.c=c; d.dataset.color=key;
+  d.style.backgroundImage=`url(${IMG[key]})`;
+  boardEl.appendChild(d);
+  return d;
+}
+function setCellColor(r,c,key){
+  const d=cells[r][c];
+  d.dataset.color=key;
+  d.style.backgroundImage=`url(${IMG[key]})`;
+}
+function floodGroup(r,c,key){
+  const group=[], seen=new Set(), stack=[[r,c]];
+  while(stack.length){
+    const [rr,cc]=stack.pop(), id=`${rr},${cc}`;
+    if(seen.has(id)) continue; seen.add(id);
+    const d=cells[rr]?.[cc]; if(!d||d.dataset.color!==key) continue;
+    group.push([rr,cc]);
+    stack.push([rr-1,cc],[rr+1,cc],[rr,cc-1],[rr,cc+1]);
+  }
+  return group;
+}
+let highlighted=[];
+function showHighlight(group){
+  const n=group.length; highlighted=[];
+  for(const [rr,cc] of group){
+    const el=cells[rr][cc];
+    el.classList.add('highlight'); el.textContent=n; highlighted.push(el);
+  }
+}
+function clearHighlights(){ highlighted.forEach(el=>{el.classList.remove('highlight'); el.textContent='';}); highlighted=[]; }
+function floodTurn(r,c,fromKey,toKey){
+  const stack=[[r,c]], seen=new Set();
+  while(stack.length){
+    const [rr,cc]=stack.pop(), id=`${rr},${cc}`; if(seen.has(id)) continue; seen.add(id);
+    const d=cells[rr]?.[cc]; if(!d||d.dataset.color!==fromKey) continue;
+    setCellColor(rr,cc,toKey);
+    stack.push([rr-1,cc],[rr+1,cc],[rr,cc-1],[rr,cc+1]);
+  }
+}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function moveFingerToCell(r,c,glideMs=1200,holdMs=700){
+  return new Promise(async res=>{
+    const rect=boardEl.getBoundingClientRect(); const {cell,gap}=sizes();
+    const cx=rect.left+c*(cell+gap)+cell*0.5, cy=rect.top+r*(cell+gap)+cell*0.5;
+    fingerWrap.style.transitionDuration=`${glideMs}ms`;
+    fingerWrap.style.transform=`translate(${cx-(fingerWrap.offsetWidth||48)/2}px, ${cy-(fingerWrap.offsetHeight||48)/2}px)`;
+    await sleep(glideMs); fingerInner.classList.remove('tapPulse'); void fingerInner.offsetWidth; fingerInner.classList.add('tapPulse');
+    await sleep(holdMs); res();
+  });
+}
+function teleportFingerToCenter(){
+  const rect=boardEl.getBoundingClientRect(); const {cell,gap}=sizes();
+  const cx=rect.left+(cell*4 + gap*3.5), cy=rect.top+(cell*4 + gap*3.5);
+  const old=fingerWrap.style.transitionDuration; fingerWrap.style.transitionDuration='0ms';
+  fingerWrap.style.transform=`translate(${cx-(fingerWrap.offsetWidth||48)/2}px, ${cy-(fingerWrap.offsetHeight||48)/2}px)`;
+  void fingerWrap.offsetWidth; fingerWrap.style.transitionDuration=old||'1000ms';
+}
+
+/* ===== GRAVITY REFILL (reflow-guaranteed) ===== */
+function randPrimary(){ return PRIMARIES[(Math.random()*PRIMARIES.length)|0]; }
+function onTransitionEndOnce(el, timeoutMs=700){
+  return new Promise(resolve=>{
+    let done=false;
+    const off=()=>{ if(done) return; done=true; el.removeEventListener('transitionend',off); resolve(); };
+    el.addEventListener('transitionend',off,{once:true});
+    setTimeout(off, timeoutMs);
+  });
+}
+async function gravityRefillAnimate(){
+  const anims=[];
+  for(let c=0;c<gridSize;c++){
+    const survivors=[];
+    for(let r=0;r<gridSize;r++){
+      const el=cells[r][c];
+      if(el && el.dataset.color!=='brown') survivors.push({el,row:r,key:el.dataset.color});
+    }
+    const topFill = gridSize - survivors.length;
+
+    for(let r=0;r<gridSize;r++){ const el=cells[r][c]; if(el) boardEl.removeChild(el); cells[r][c]=null; }
+
+    for(let i=survivors.length-1, dest=gridSize-1; i>=0; i--, dest--){
+      const {el,row,key}=survivors[i];
+      el.dataset.r=String(dest); el.dataset.c=String(c); el.dataset.color=key;
+      el.style.backgroundImage=`url(${IMG[key]})`;
+      el.classList.remove('falling');
+      el.style.transform = pos(row,c,0);
+      boardEl.appendChild(el);
+      void el.offsetWidth; // ensure painted start
+      if(dest!==row){
+        el.classList.add('falling');
+        el.style.transform = pos(dest,c,0);
+        anims.push(onTransitionEndOnce(el));
+      } else {
+        anims.push(Promise.resolve());
+      }
+      cells[dest][c]=el;
+    }
+
+    for(let r=0;r<topFill;r++){
+      const key=randPrimary();
+      const el=document.createElement('div');
+      el.className='cell';
+      el.dataset.r=String(r); el.dataset.c=String(c); el.dataset.color=key;
+      el.style.backgroundImage=`url(${IMG[key]})`;
+      const depth=topFill - r;
+      el.style.transform = pos(-depth, c, 0);
+      boardEl.appendChild(el);
+      void el.offsetWidth; // ensure painted start
+      el.classList.add('falling');
+      el.style.transform = pos(r,c,0);
+      anims.push(onTransitionEndOnce(el));
+      cells[r][c]=el;
+    }
+  }
+  await Promise.all(anims);
+}
+
+/* === generation-based cancellation === */
+let loopGen = 0;
+const startNewGen = () => ++loopGen;
+const isStale = (gen) => gen !== loopGen;
+
+/* === base layouts === */
+function renderBoardFromLayout(layout){
+  boardEl.innerHTML=''; cells.length=0;
+  for(let r=0;r<gridSize;r++){
+    const row=[];
+    for(let c=0;c<gridSize;c++) row.push(makeCell(r,c,layout[r][c]));
+    cells.push(row);
+  }
+}
+function buildSlide2Layout(){
+  renderBoardFromLayout([
+    ['O','O','B','B','B','B','O','O'],
+    ['O','O','B','R','B','B','O','O'],
+    ['O','O','B','B','R','B','O','O'],
+    ['B','B','B','R','B','B','B','B'],
+    ['B','Y','B','B','R','B','Y','B'],
+    ['R','B','R','Y','B','B','Y','B'],
+    ['Y','B','B','R','B','Y','Y','B'],
+    ['R','B','R','R','Y','B','Y','Y'],
+  ]);
+}
+
+/* ===== slides ===== */
+const slide1={
+  caption:'Combine primary color sets to turn them into secondary color sets. Creating secondary color sets makes the thermometer gain heat.',
+  build(){
+    renderBoardFromLayout([
+      ['R','R','B','B','B','B','Y','Y'],
+      ['R','R','B','R','B','B','Y','Y'],
+      ['R','R','B','B','R','B','Y','Y'],
+      ['B','B','B','R','B','B','B','B'],
+      ['B','Y','B','B','R','B','Y','B'],
+      ['R','B','R','Y','B','B','Y','B'],
+      ['Y','B','B','R','B','Y','Y','B'],
+      ['R','B','R','R','Y','B','Y','Y'],
+    ]);
+  },
+  async runLoop(gen){
+    if (isStale(gen)) return;
+    thermo.src=THERMO[0]; numEl.textContent='0'; denEl.textContent='25';
+    const LEFT_RED={r:1,c:0}, RIGHT_YEL={r:1,c:7};
+
+    await moveFingerToCell(LEFT_RED.r,LEFT_RED.c,1300,650); if (isStale(gen)) return;
+    const redGroup=floodGroup(LEFT_RED.r,LEFT_RED.c,'R'); showHighlight(redGroup);
+
+    await moveFingerToCell(RIGHT_YEL.r,RIGHT_YEL.c,1500,650); if (isStale(gen)) return;
+
+    clearHighlights();
+    floodTurn(LEFT_RED.r,LEFT_RED.c,'R','O'); floodTurn(RIGHT_YEL.r,RIGHT_YEL.c,'Y','O');
+
+    thermo.src=THERMO[1]; await sleep(900); if (isStale(gen)) return;
+
+    thermo.src=THERMO[0];
+    teleportFingerToCenter(); await sleep(350); if (isStale(gen)) return;
+
+    floodTurn(LEFT_RED.r,LEFT_RED.c,'O','R'); floodTurn(RIGHT_YEL.r,RIGHT_YEL.c,'O','Y');
+    await sleep(400);
+  },
+  arrows(){
+    arrowL.style.display='none';
+    arrowR.style.display='block';
+    checkBtn.style.display='none';
+  }
+};
+
+const slide2={
+  caption:'Combine a secondary set with the proper primary to make brown. Making brown does not create any heat!',
+  build(){ buildSlide2Layout(); },
+  async runLoop(gen){
+    if (isStale(gen)) return;
+
+    // Carry heat from slide 1
+    thermo.src = THERMO[1];
+    numEl.textContent = '0'; denEl.textContent = '25';
+
+    const ORANGE_LEFT = { r:1, c:0 };
+    const BLUE_TARGET = { r:5, c:1 };
+
+    await moveFingerToCell(ORANGE_LEFT.r, ORANGE_LEFT.c, 1300, 650); if (isStale(gen)) return;
+    const og = floodGroup(ORANGE_LEFT.r, ORANGE_LEFT.c, 'O'); showHighlight(og);
+
+    await moveFingerToCell(BLUE_TARGET.r, BLUE_TARGET.c, 1500, 650); if (isStale(gen)) return;
+
+    clearHighlights();
+    floodTurn(ORANGE_LEFT.r, ORANGE_LEFT.c, 'O', 'brown');
+    floodTurn(BLUE_TARGET.r,  BLUE_TARGET.c,  'B', 'brown');
+
+    // 10/25, pause
+    numEl.textContent = '10'; denEl.textContent = '25';
+    await sleep(1200); if (isStale(gen)) return;
+
+    // Gravity (with reflow) — animates on first run too
+    await gravityRefillAnimate(); if (isStale(gen)) return;
+
+    await sleep(500);
+
+    // Loop: teleport and rebuild base to replay
+    teleportFingerToCenter(); await sleep(320); if (isStale(gen)) return;
+
+    buildSlide2Layout();
+    thermo.src = THERMO[1];
+    numEl.textContent = '0'; denEl.textContent = '25';
+    await sleep(300);
+  },
+  arrows(){
+    arrowL.style.display='block';                // back arrow visible
+    arrowR.style.display='block';                // next arrow to slide 3
+    checkBtn.style.display='none';
+  }
+};
+
+/* SLIDE 3 — hard-coded start board + 10/25 HUD, finish button */
+const slide3={
+  caption:'Brown sets create ice. Collect enough ice to reset the thermometer. Do not let the thermometer fill, or the game will end!',
+  build(){
+    renderBoardFromLayout([
+      ['Y','Y','R','B','B','B','O','O'],
+      ['R','B','B','R','B','B','O','O'],
+      ['B','B','B','B','R','B','O','O'],
+      ['B','R','B','R','B','B','B','B'],
+      ['B','R','B','B','R','B','Y','B'],
+      ['R','Y','B','Y','B','B','Y','B'],
+      ['Y','B','R','R','B','Y','Y','B'],
+      ['R','Y','R','R','Y','B','Y','Y'],
+    ]);
+    // HUD should start at 10/25 with heat
+    thermo.src = THERMO[1];
+    numEl.textContent = '10'; denEl.textContent = '25';
+  },
+  async runLoop(gen){
+    if (isStale(gen)) return;
+
+    const ORANGE_RIGHT = { r:1, c:6 }; // inside far-right 2×3 orange
+    const BLUE_MIDDLE  = { r:3, c:2 }; // inside large middle blue
+
+    await moveFingerToCell(ORANGE_RIGHT.r, ORANGE_RIGHT.c, 1300, 650); if (isStale(gen)) return;
+    const og = floodGroup(ORANGE_RIGHT.r, ORANGE_RIGHT.c, 'O'); showHighlight(og);
+
+    await moveFingerToCell(BLUE_MIDDLE.r, BLUE_MIDDLE.c, 1500, 650); if (isStale(gen)) return;
+
+    clearHighlights();
+    floodTurn(ORANGE_RIGHT.r, ORANGE_RIGHT.c, 'O', 'brown');
+    floodTurn(BLUE_MIDDLE.r,  BLUE_MIDDLE.c,  'B', 'brown');
+
+    // Flash 25/25 for 500ms before reset
+    numEl.textContent = '25'; denEl.textContent = '25';
+    await sleep(500);
+    // Reset thermometer after "enough ice"
+    thermo.src = THERMO[0];
+    numEl.textContent = '0'; denEl.textContent = '25';
+
+    // Small gravity to sell effect
+    await gravityRefillAnimate();
+
+    // Loop: restart from the same hard-coded board & 10/25 HUD
+    teleportFingerToCenter(); await sleep(320); if (isStale(gen)) return;
+
+    slide3.build();
+    await sleep(300);
+  },
+  arrows(){
+    arrowL.style.display='block';     // back arrow visible
+    arrowR.style.display='none'; // no "next" on last slide
+    checkBtn.style.display='block';   // show finish button
+  }
+};
+
+/* slideshow controller */
+const slides=[slide1,slide2,slide3];
+let slideIndex=0;
+let loopGuard=0;
+
+async function showSlide(idx){
+  const gen = startNewGen();
+  slideIndex = Math.max(0, Math.min(slides.length-1, idx));
+
+  fingerWrap.style.transitionDuration = '0ms';
+  // default HUD; each slide sets its own specifics
+  thermo.src=THERMO[0]; numEl.textContent='0'; denEl.textContent='25';
+
+  slides[slideIndex].build();
+  captionEl.textContent=slides[slideIndex].caption;
+  slides[slideIndex].arrows();
+
+  teleportFingerToCenter();
+  requestAnimationFrame(()=>{ fingerWrap.style.transitionDuration='1000ms'; });
+
+  const myGuard=++loopGuard;
+  while (gen === loopGen && myGuard===loopGuard) {
+    await slides[slideIndex].runLoop(gen);
+  }
+}
+
+/* arrow & check handlers */
+arrowL.addEventListener('click',()=>showSlide(slideIndex-1));
+arrowR.addEventListener('click',()=>showSlide(slideIndex+1));
+checkBtn.addEventListener('click',()=>{ window.location.href='index.html'; });
+
+/* responsive sizing */
+function resize(){ const vw=Math.min(window.innerWidth||360,900), sidePad=96, target=Math.max(280,Math.min(vw-sidePad,640));
+  const gap=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--gap'))||6;
+  const cell=Math.floor((target-gap*7)/8);
+  document.documentElement.style.setProperty('--cell',cell+'px');
+  document.documentElement.style.setProperty('--board-w',`calc(${cell}px*8 + ${gap}px*7)`); }
+window.addEventListener('resize',resize,{passive:true});
+window.addEventListener('orientationchange',resize);
+
+/* boot */
+resize(); showSlide(0);
+window.addEventListener('pagehide',()=>{ startNewGen(); });
+</script>
+</body>
+</html>

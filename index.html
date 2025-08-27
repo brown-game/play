@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+  <title>BROWN — Home</title>
+  <style>
+    :root{
+      --content-max: 760px;
+      --btn-radius: 16px;
+      --gap: 18px;
+    }
+    html, body { height: 100%; }
+    body{
+      margin:0; background:#000; color:#fff;
+      font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+      -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+      -webkit-tap-highlight-color:transparent;
+      display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right)
+               env(safe-area-inset-bottom) env(safe-area-inset-left);
+      user-select:none;
+    }
+
+    /* HUD (top-left) */
+    #hud{
+      position:fixed;
+      top:calc(10px + env(safe-area-inset-top));
+      left:calc(12px + env(safe-area-inset-left));
+      display:grid; row-gap:10px;
+      z-index:10; pointer-events:none;
+    }
+    .hud-row{ display:inline-flex; align-items:center; gap:8px; }
+    .hud-row img{ height:28px; width:auto; display:block; }
+    .hud-text{
+      font-weight:900; font-size:22px; letter-spacing:.3px;
+      text-shadow:0 0 3px #000,0 0 6px #000,1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000;
+    }
+
+    main{
+      width:min(94vw, var(--content-max));
+      margin-top:110px;              /* clears HUD on all devices */
+      display:grid; justify-items:center; row-gap: var(--gap);
+    }
+
+    /* Logo */
+    #logo{
+      width:min(78vw, 520px);
+      height:auto; display:block;
+      filter: drop-shadow(0 10px 24px rgba(0,0,0,.6));
+      -webkit-user-drag:none;
+      user-select:none;
+    }
+
+    /* Button stack */
+    .stack{
+      display:grid;
+      row-gap: var(--gap);
+      justify-items:center;          /* ensures horizontal centering */
+      width:100%;
+    }
+
+    /* Base button */
+    .btn{
+      width:min(94vw, 520px);        /* identical width for all buttons */
+      padding:14px 0;
+      font-size: clamp(18px, 5.8vw, 28px);
+      font-weight:900;
+      letter-spacing:.6px;
+      border-radius: var(--btn-radius);
+      cursor:pointer;
+      text-align:center;
+      text-decoration:none;
+      transition: transform 120ms ease-out, box-shadow 120ms ease-out,
+                  background 120ms ease-out, color 120ms ease-out, border 120ms ease-out;
+    }
+    .btn:active{ transform: scale(.98); }
+
+    /* Filled (Play) */
+    .btn.filled{
+      background:#fff; color:#000; border:none;
+      box-shadow: 0 10px 30px rgba(0,0,0,.45);
+    }
+
+    /* Outlined (Tutorial/Store) */
+    .btn.outlined{
+      background:transparent; color:#fff;
+      border:3px solid #fff;
+      box-shadow:none;
+    }
+
+    /* Optional subtle hover on desktop */
+    @media (hover:hover){
+      .btn.filled:hover{ box-shadow: 0 12px 36px rgba(0,0,0,.5); }
+      .btn.outlined:hover{ background: rgba(255,255,255,.08); }
+    }
+  </style>
+</head>
+<body>
+
+<script>
+  window.onload = () => {
+    const audio = new Audio('Untitled.mp3');
+    audio.loop = true;
+    audio.play();
+  };
+</script>
+
+
+  <!-- HUD: Best & Coins -->
+  <div id="hud" aria-hidden="true">
+    <div class="hud-row">
+      <img src="Images/crown.webp" alt="Best">
+      <div id="bestText" class="hud-text">0</div>
+    </div>
+    <div class="hud-row">
+      <img src="Images/coin.webp" alt="Coins">
+      <div id="coinsText" class="hud-text">0</div>
+    </div>
+  </div>
+
+  <main>
+    <img id="logo" src="Images/Brown Logo.png" alt="BROWN">
+
+    <div class="stack">
+      <a class="btn outlined" href="game.html">Play</a>
+      <a class="btn outlined" href="tutorial.html">Tutorial</a>
+      <a class="btn outlined" href="store.html">Store</a>
+    </div>
+  </main>
+
+  <script>
+    /* Storage keys (shared with game/store) */
+    const HIGH_KEY  = 'highScoreV1';
+    const COINS_KEY = 'totalCoinsV1';
+
+    /* Web + Capacitor-compatible storage */
+    const Storage = {
+      async get(key){
+        try{
+          const Cap = window.Capacitor;
+          const Pref = window.Preferences || Cap?.Plugins?.Preferences || Cap?.Plugins?.Storage;
+          if (Cap?.isNativePlatform?.() && Pref?.get){
+            const { value } = await Pref.get({ key });
+            return value ?? null;
+          }
+        }catch(_){}
+        try{ return localStorage.getItem(key); }catch{ return null; }
+      }
+    };
+
+    const bestText  = document.getElementById('bestText');
+    const coinsText = document.getElementById('coinsText');
+    const fmt = n => Number(n||0).toLocaleString();
+
+    (async function init(){
+      // Preload to avoid flicker
+      ['Images/crown.webp','Images/coin.webp','Images/Brown Logo.png'].forEach(s=>{
+        const im=new Image(); im.src=s;
+      });
+
+      const best  = Math.max(0, parseInt(await Storage.get(HIGH_KEY)||'0',10) || 0);
+      const coins = Math.max(0, parseInt(await Storage.get(COINS_KEY)||'0',10) || 0);
+      bestText.textContent  = fmt(best);
+      coinsText.textContent = fmt(coins);
+    })();
+  </script>
+</body>
+</html>

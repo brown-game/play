@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+  <title>BROWN — Store</title>
+  <style>
+    :root{
+      --content-max: 720px;
+      --row-gap: 22px;
+      --tile-size: 58px;
+      --tile-radius: 12px;
+      --pad: 14px;
+    }
+    html, body { height: 100%; }
+    body{
+      margin:0; background:#000; color:#fff;
+      font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+      -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+      -webkit-tap-highlight-color:transparent;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right)
+               env(safe-area-inset-bottom) env(safe-area-inset-left);
+      user-select:none;
+    }
+
+    /* HUD */
+    #hud{
+      position:fixed;
+      top:calc(10px + env(safe-area-inset-top));
+      left:calc(12px + env(safe-area-inset-left));
+      display:grid; row-gap:8px;
+      z-index:40; pointer-events:none;
+    }
+    .hud-row{ display:inline-flex; align-items:center; gap:8px; }
+    .hud-row img{ height:26px; width:auto; display:block; }
+    .hud-text{
+      font-weight:900; font-size:22px; letter-spacing:.3px;
+      text-shadow:0 0 3px #000,0 0 6px #000,1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000;
+    }
+
+    /* Home */
+    #homeBtn{
+      position:fixed; top: calc(8px + env(safe-area-inset-top));
+      right: calc(10px + env(safe-area-inset-right));
+      z-index:50; background:none; border:none; padding:0; cursor:pointer;
+    }
+    #homeBtn img{ height:32px; width:auto; display:block; }
+    /* Layout */
+    .wrap{
+      width:min(94vw,var(--content-max));
+      margin:94px auto 24px;
+    }
+    .section{
+      display:grid; row-gap:10px;
+      padding: var(--pad);
+      border:2px solid #3a3a3a; border-radius:14px;
+      margin-bottom: var(--row-gap);
+      background:rgba(255,255,255,0.04);
+      box-shadow: 0 0 0 2px #000 inset;
+    }
+    .title{ font-weight:900; font-size:clamp(16px, 4.8vw, 22px); }
+    .subtitle{ font-size:clamp(12px, 3.6vw, 14px); opacity:.85; }
+
+    .tiles{
+      display:grid; grid-template-columns: repeat(7, var(--tile-size));
+      gap:10px; justify-content:flex-start; align-items:center;
+    }
+    .tile{
+      width:var(--tile-size); height:var(--tile-size);
+      border-radius:var(--tile-radius);
+      background:#111 center/cover no-repeat;
+      box-shadow:0 0 0 2px #000 inset, 0 2px 10px rgba(0,0,0,.35);
+    }
+
+    .actions{ display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin-top:6px; }
+
+    /* Buttons */
+    .btn{
+      display:inline-flex; align-items:center; justify-content:center; gap:10px;
+      background: rgba(0,0,0,0.35); color:#fff;
+      font-weight:900; font-size:clamp(14px, 4.4vw, 18px);
+      letter-spacing:.4px; padding:12px 16px;
+      border:3px solid #fff; border-radius:14px; text-decoration:none;
+      user-select:none; transition:transform 120ms ease-out, background 120ms, color 120ms;
+    }
+    .btn img{ height:20px; width:auto; }
+    .btn:active{ transform:scale(.98); }
+    .btn[disabled]{ opacity:.45; pointer-events:none; }
+
+    /* Active style = inverted */
+    .btn.activeInvert{
+      background:#fff; color:#000;
+    }
+
+    @media (max-width: 420px){
+      :root{ --tile-size: 48px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- HUD -->
+  <div id="hud" aria-hidden="true">
+    <div class="hud-row">
+      <img src="Images/crown.webp" alt="Best">
+      <div id="bestText" class="hud-text">0</div>
+    </div>
+    <div class="hud-row">
+      <img src="Images/coin.webp" alt="Coins">
+      <div id="coinsText" class="hud-text">0</div>
+    </div>
+  </div>
+
+  <!-- Home -->
+  <button id="homeBtn" onclick="location.href='index.html'">
+    <img src="Images/home.webp" alt="Home">
+  </button>
+
+  <main class="wrap" id="list"></main>
+
+  <script>
+    /********** EDIT YOUR STORE HERE **********/
+    // id: -1 is the DEFAULT set (Images/1.webp..7.webp). Already owned, but can be set active.
+    // For other sets, customize title, unlockScore, price, and base (first image number of the row).
+    const SETS = [
+      { id: -1, title: 'Default Set', unlockScore: 0, price: 0, base: 1, alwaysOwned: true },
+
+      // Examples — customize as you like:
+      { id: 0,  title: 'Modern', unlockScore: 30000, price: 200, base: 8 },
+      { id: 1,  title: 'Metallic Mixables', unlockScore: 50000, price: 300, base: 15 },
+      { id: 2,  title: 'Camo Collage', unlockScore: 70000, price: 400, base: 22 },
+      { id: 3,  title: 'Dyed Dice', unlockScore: 90000, price: 500, base: 29 },
+      { id: 4,  title: 'Chromatic Crayons', unlockScore: 100000, price: 750, base: 36 },
+      { id: 5,  title: 'Fusion Fruits', unlockScore: 100000, price: 1000, base: 43 },
+      { id: 6,  title: 'Vibrant Veggies', unlockScore: 100000, price: 1000, base: 50 },
+      { id: 7,  title: 'Gleaming Gems', unlockScore: 100000, price: 1000, base: 57 },
+      { id: 8,  title: 'Brilliant Butterflies', unlockScore: 120000, price: 1000, base: 64 },
+      { id: 9,  title: 'Spectrum Shrooms', unlockScore: 140000, price: 1000, base: 71 },
+      { id: 10,  title: 'Fantastic Florals', unlockScore: 160000, price: 1000, base: 78 },
+      { id: 11,  title: 'Charming Checkmate', unlockScore: 180000, price: 1000, base: 85 },
+      { id: 12,  title: 'Prehistoric Pigments', unlockScore: 200000, price: 1000, base: 92 },
+      { id: 13,  title: 'Tinted Titans', unlockScore: 300000, price: 1000, base: 99 },
+
+      // Add more rows up to 20 total; each row uses base..base+6 (<= Images/140.webp)
+    ];
+
+    /********** Storage keys **********/
+    const HIGH_KEY       = 'highScoreV1';
+    const COINS_KEY      = 'totalCoinsV1';
+    const PURCHASES_KEY  = 'purchasedSetsV2';
+    const ACTIVE_SET_KEY = 'activeSetV1'; // matches game.html
+
+    /********** Storage layer (web + Capacitor) **********/
+    const Storage = {
+      async get(key){
+        try{
+          const Cap = window.Capacitor;
+          const Pref = window.Preferences || Cap?.Plugins?.Preferences || Cap?.Plugins?.Storage;
+          if (Cap?.isNativePlatform?.() && Pref?.get){
+            const { value } = await Pref.get({ key }); return value ?? null;
+          }
+        }catch(_){}
+        try{ return localStorage.getItem(key); }catch{ return null; }
+      },
+      async set(key, val){
+        try{
+          const Cap = window.Capacitor;
+          const Pref = window.Preferences || Cap?.Plugins?.Preferences || Cap?.Plugins?.Storage;
+          if (Cap?.isNativePlatform?.() && Pref?.set){
+            await Pref.set({ key, value: String(val) }); return;
+          }
+        }catch(_){}
+        try{ localStorage.setItem(key, String(val)); }catch{}
+      }
+    };
+
+    /********** UI refs **********/
+    const listEl   = document.getElementById('list');
+    const bestText = document.getElementById('bestText');
+    const coinsText= document.getElementById('coinsText');
+
+    /********** State **********/
+    let best = 0;
+    let coins = 0;
+    let purchases = [];   // array of set ids
+    let activeSet = -1;   // -1 means default set active (matches game.html expectation)
+
+    /********** Helpers **********/
+    const fmt = n => Number(n||0).toLocaleString();
+
+    function setCSSSize(){
+      const w = Math.min(window.innerWidth * 0.94, parseInt(getComputedStyle(document.documentElement).getPropertyValue('--content-max')) || 720);
+      const inner = w - 28*2 - 10*6; // paddings + gaps
+      const size = Math.max(44, Math.min(68, Math.floor(inner / 7)));
+      document.documentElement.style.setProperty('--tile-size', size + 'px');
+      document.documentElement.style.setProperty('--tile-radius', Math.round(size*0.22) + 'px');
+    }
+
+    function createTiles(base, unlocked){
+      const tiles = document.createElement('div');
+      tiles.className = 'tiles';
+      for(let k=0;k<7;k++){
+        const t = document.createElement('div');
+        t.className = 'tile';
+        t.style.backgroundImage = `url(Images/${base+k}.webp)`;
+        if (!unlocked) t.style.backgroundImage = `url(Images/lock.webp)`;
+        tiles.appendChild(t);
+      }
+      return tiles;
+    }
+
+    function refreshActiveButtons(){
+      document.querySelectorAll('[data-setid]').forEach(sec=>{
+        const id = sec.getAttribute('data-setid');
+        const setBtn = sec.querySelector('.setBtn');
+        if (!setBtn) return;
+        const isActive = (activeSet === Number(id));
+        setBtn.textContent = isActive ? 'Active' : 'Set Active';
+        setBtn.classList.toggle('activeInvert', isActive);
+      });
+    }
+
+    async function loadState(){
+      best  = Math.max(0, parseInt(await Storage.get(HIGH_KEY) || '0', 10) || 0);
+      coins = Math.max(0, parseInt(await Storage.get(COINS_KEY) || '0', 10) || 0);
+      try{
+        purchases = JSON.parse(await Storage.get(PURCHASES_KEY) || '[]') || [];
+      }catch{ purchases = []; }
+      const rawActive = await Storage.get(ACTIVE_SET_KEY);
+      activeSet = (rawActive === null || rawActive === undefined || rawActive === '') ? -1 : parseInt(rawActive, 10);
+      if (Number.isNaN(activeSet)) activeSet = -1;
+
+      // Ensure default set appears owned
+      if (!purchases.includes(-1)) purchases.push(-1);
+
+      bestText.textContent  = fmt(best);
+      coinsText.textContent = fmt(coins);
+    }
+
+    async function saveCoins(){
+      await Storage.set(COINS_KEY, String(coins));
+      coinsText.textContent = fmt(coins);
+    }
+    async function savePurchases(){
+      await Storage.set(PURCHASES_KEY, JSON.stringify(purchases));
+    }
+    async function saveActive(){
+      await Storage.set(ACTIVE_SET_KEY, String(activeSet));
+    }
+
+    function render(){
+      listEl.innerHTML = '';
+      SETS.forEach(set=>{
+        const unlocked = best >= set.unlockScore;
+        const owned    = set.alwaysOwned ? true : purchases.includes(set.id);
+        const isDefault= set.id === -1;
+
+        const sec = document.createElement('section');
+        sec.className = 'section';
+        sec.setAttribute('data-setid', String(set.id));
+
+        const title = document.createElement('div');
+        title.className = 'title';
+        title.textContent = set.title;
+        sec.appendChild(title);
+
+        const sub = document.createElement('div');
+        sub.className = 'subtitle';
+        sub.textContent = isDefault ? 'Always available' : `Unlocks at ${set.unlockScore.toLocaleString()} Score`;
+        sec.appendChild(sub);
+
+        sec.appendChild(createTiles(set.base, unlocked || isDefault));
+
+        const actions = document.createElement('div');
+        actions.className = 'actions';
+
+        // BUY button (hidden/disabled for default set)
+        const buyBtn = document.createElement('button');
+        buyBtn.className = 'btn';
+        buyBtn.innerHTML = `Buy <img src="Images/coin.webp" alt=""> ${fmt(set.price)}`;
+
+        if (isDefault || !unlocked || owned){
+          buyBtn.disabled = true;
+          if (isDefault) buyBtn.style.visibility = 'hidden'; // remove for default set
+        }
+
+        buyBtn.addEventListener('click', async ()=>{
+          if (buyBtn.disabled) return;
+          if (coins < set.price) return;
+          coins -= set.price; await saveCoins();
+          purchases.push(set.id); await savePurchases();
+          buyBtn.disabled = true;
+          setBtn.disabled = false;
+        });
+
+        // SET ACTIVE button – inverts when active (no blue tag)
+        const setBtn = document.createElement('button');
+        setBtn.className = 'btn setBtn';
+        setBtn.textContent = (activeSet === set.id) ? 'Active' : 'Set Active';
+        setBtn.classList.toggle('activeInvert', activeSet === set.id);
+
+        // Enabled if unlocked AND owned (or default)
+        if (!(unlocked || isDefault) || !(owned || isDefault)){
+          setBtn.disabled = true;
+        }
+
+        setBtn.addEventListener('click', async ()=>{
+          if (setBtn.disabled) return;
+          activeSet = set.id;       // can be -1 for default
+          await saveActive();
+          refreshActiveButtons();
+        });
+
+        actions.appendChild(buyBtn);
+        actions.appendChild(setBtn);
+        sec.appendChild(actions);
+
+        listEl.appendChild(sec);
+      });
+
+      refreshActiveButtons();
+    }
+
+    function onResize(){ setCSSSize(); }
+
+    (async function(){
+      setCSSSize();
+      window.addEventListener('resize', onResize, {passive:true});
+
+      // Preload icons to avoid layout jumps
+      ['Images/crown.webp','Images/coin.webp','Images/lock.webp','Images/home.webp'].forEach(s=>{ const im=new Image(); im.src=s; });
+
+      await loadState();
+      render();
+    })();
+  </script>
+</body>
+</html>
