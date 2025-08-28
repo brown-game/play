@@ -9,11 +9,14 @@
     :root{
       --content-max: 720px;
       --row-gap: 22px;
-      --tile-size: 58px;
-      --tile-radius: 12px;
       --pad: 14px;
+      --tile-radius: 12px;
     }
-    html, body { height: 100%; }
+
+    /* Safety so borders/padding never cause overflow math surprises */
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html, body { height: 100%; overflow-x: hidden; }
     body{
       margin:0; background:#000; color:#fff;
       font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
@@ -46,11 +49,13 @@
       z-index:50; background:none; border:none; padding:0; cursor:pointer;
     }
     #homeBtn img{ height:32px; width:auto; display:block; }
+
     /* Layout */
     .wrap{
-      width:min(94vw,var(--content-max));
+      width:min(96vw,var(--content-max));
       margin:94px auto 24px;
     }
+
     .section{
       display:grid; row-gap:10px;
       padding: var(--pad);
@@ -62,18 +67,26 @@
     .title{ font-weight:900; font-size:clamp(16px, 4.8vw, 22px); }
     .subtitle{ font-size:clamp(12px, 3.6vw, 14px); opacity:.85; }
 
+    /* --- RESPONSIVE TILE GRID (no horizontal scroll) --- */
     .tiles{
-      display:grid; grid-template-columns: repeat(7, var(--tile-size));
-      gap:10px; justify-content:flex-start; align-items:center;
+      display:grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr)); /* always 7 per row */
+      gap: clamp(6px, 1.8vw, 10px);
+      align-items: stretch;
     }
     .tile{
-      width:var(--tile-size); height:var(--tile-size);
-      border-radius:var(--tile-radius);
+      width:100%;
+      aspect-ratio: 1 / 1;               /* perfect square without fixed px */
+      border-radius: var(--tile-radius);
       background:#111 center/cover no-repeat;
       box-shadow:0 0 0 2px #000 inset, 0 2px 10px rgba(0,0,0,.35);
     }
 
-    .actions{ display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin-top:6px; }
+    .actions{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:14px; margin-top:6px;
+    }
 
     /* Buttons */
     .btn{
@@ -83,6 +96,7 @@
       letter-spacing:.4px; padding:12px 16px;
       border:3px solid #fff; border-radius:14px; text-decoration:none;
       user-select:none; transition:transform 120ms ease-out, background 120ms, color 120ms;
+      min-width: 0; /* allows text to shrink within grid column */
     }
     .btn img{ height:20px; width:auto; }
     .btn:active{ transform:scale(.98); }
@@ -93,8 +107,10 @@
       background:#fff; color:#000;
     }
 
+    /* Extra-small screens: stack buttons to prevent overflow */
     @media (max-width: 420px){
-      :root{ --tile-size: 48px; }
+      .actions{ grid-template-columns: 1fr; }
+      .btn{ width:100%; }
     }
   </style>
 </head>
@@ -120,35 +136,30 @@
 
   <script>
     /********** EDIT YOUR STORE HERE **********/
-    // id: -1 is the DEFAULT set (Images/1.webp..7.webp). Already owned, but can be set active.
-    // For other sets, customize title, unlockScore, price, and base (first image number of the row).
     const SETS = [
       { id: -1, title: 'Default Set', unlockScore: 0, price: 0, base: 1, alwaysOwned: true },
 
-      // Examples — customize as you like:
-      { id: 0,  title: 'Modern', unlockScore: 30000, price: 200, base: 8 },
-      { id: 1,  title: 'Metallic Mixables', unlockScore: 50000, price: 300, base: 15 },
-      { id: 2,  title: 'Camo Collage', unlockScore: 70000, price: 400, base: 22 },
-      { id: 3,  title: 'Dyed Dice', unlockScore: 90000, price: 500, base: 29 },
-      { id: 4,  title: 'Chromatic Crayons', unlockScore: 100000, price: 750, base: 36 },
-      { id: 5,  title: 'Fusion Fruits', unlockScore: 100000, price: 1000, base: 43 },
-      { id: 6,  title: 'Vibrant Veggies', unlockScore: 100000, price: 1000, base: 50 },
-      { id: 7,  title: 'Gleaming Gems', unlockScore: 100000, price: 1000, base: 57 },
-      { id: 8,  title: 'Brilliant Butterflies', unlockScore: 120000, price: 1000, base: 64 },
-      { id: 9,  title: 'Spectrum Shrooms', unlockScore: 140000, price: 1000, base: 71 },
-      { id: 10,  title: 'Fantastic Florals', unlockScore: 160000, price: 1000, base: 78 },
-      { id: 11,  title: 'Charming Checkmate', unlockScore: 180000, price: 1000, base: 85 },
-      { id: 12,  title: 'Prehistoric Pigments', unlockScore: 200000, price: 1000, base: 92 },
-      { id: 13,  title: 'Tinted Titans', unlockScore: 300000, price: 1000, base: 99 },
-
-      // Add more rows up to 20 total; each row uses base..base+6 (<= Images/140.webp)
+      { id: 0,  title: 'Modern',               unlockScore: 30000,  price: 200,  base: 8 },
+      { id: 1,  title: 'Metallic Mixables',    unlockScore: 50000,  price: 300,  base: 15 },
+      { id: 2,  title: 'Camo Collage',         unlockScore: 70000,  price: 400,  base: 22 },
+      { id: 3,  title: 'Dyed Dice',            unlockScore: 90000,  price: 500,  base: 29 },
+      { id: 4,  title: 'Chromatic Crayons',    unlockScore: 100000, price: 750,  base: 36 },
+      { id: 5,  title: 'Fusion Fruits',        unlockScore: 100000, price: 1000, base: 43 },
+      { id: 6,  title: 'Vibrant Veggies',      unlockScore: 100000, price: 1000, base: 50 },
+      { id: 7,  title: 'Gleaming Gems',        unlockScore: 100000, price: 1000, base: 57 },
+      { id: 8,  title: 'Brilliant Butterflies',unlockScore: 120000, price: 1000, base: 64 },
+      { id: 9,  title: 'Spectrum Shrooms',     unlockScore: 140000, price: 1000, base: 71 },
+      { id: 10, title: 'Fantastic Florals',    unlockScore: 160000, price: 1000, base: 78 },
+      { id: 11, title: 'Charming Checkmate',   unlockScore: 180000, price: 1000, base: 85 },
+      { id: 12, title: 'Prehistoric Pigments', unlockScore: 200000, price: 1000, base: 92 },
+      { id: 13, title: 'Tinted Titans',        unlockScore: 300000, price: 1000, base: 99 },
     ];
 
     /********** Storage keys **********/
     const HIGH_KEY       = 'highScoreV1';
     const COINS_KEY      = 'totalCoinsV1';
     const PURCHASES_KEY  = 'purchasedSetsV2';
-    const ACTIVE_SET_KEY = 'activeSetV1'; // matches game.html
+    const ACTIVE_SET_KEY = 'activeSetV1';
 
     /********** Storage layer (web + Capacitor) **********/
     const Storage = {
@@ -166,7 +177,7 @@
         try{
           const Cap = window.Capacitor;
           const Pref = window.Preferences || Cap?.Plugins?.Preferences || Cap?.Plugins?.Storage;
-          if (Cap?.isNativePlatform?.() && Pref?.set){
+        if (Cap?.isNativePlatform?.() && Pref?.set){
             await Pref.set({ key, value: String(val) }); return;
           }
         }catch(_){}
@@ -182,19 +193,11 @@
     /********** State **********/
     let best = 0;
     let coins = 0;
-    let purchases = [];   // array of set ids
-    let activeSet = -1;   // -1 means default set active (matches game.html expectation)
+    let purchases = [];
+    let activeSet = -1;
 
     /********** Helpers **********/
     const fmt = n => Number(n||0).toLocaleString();
-
-    function setCSSSize(){
-      const w = Math.min(window.innerWidth * 0.94, parseInt(getComputedStyle(document.documentElement).getPropertyValue('--content-max')) || 720);
-      const inner = w - 28*2 - 10*6; // paddings + gaps
-      const size = Math.max(44, Math.min(68, Math.floor(inner / 7)));
-      document.documentElement.style.setProperty('--tile-size', size + 'px');
-      document.documentElement.style.setProperty('--tile-radius', Math.round(size*0.22) + 'px');
-    }
 
     function createTiles(base, unlocked){
       const tiles = document.createElement('div');
@@ -202,8 +205,7 @@
       for(let k=0;k<7;k++){
         const t = document.createElement('div');
         t.className = 'tile';
-        t.style.backgroundImage = `url(Images/${base+k}.webp)`;
-        if (!unlocked) t.style.backgroundImage = `url(Images/lock.webp)`;
+        t.style.backgroundImage = unlocked ? `url(Images/${base+k}.webp)` : `url(Images/lock.webp)`;
         tiles.appendChild(t);
       }
       return tiles;
@@ -211,10 +213,10 @@
 
     function refreshActiveButtons(){
       document.querySelectorAll('[data-setid]').forEach(sec=>{
-        const id = sec.getAttribute('data-setid');
+        const id = Number(sec.getAttribute('data-setid'));
         const setBtn = sec.querySelector('.setBtn');
         if (!setBtn) return;
-        const isActive = (activeSet === Number(id));
+        const isActive = (activeSet === id);
         setBtn.textContent = isActive ? 'Active' : 'Set Active';
         setBtn.classList.toggle('activeInvert', isActive);
       });
@@ -230,8 +232,7 @@
       activeSet = (rawActive === null || rawActive === undefined || rawActive === '') ? -1 : parseInt(rawActive, 10);
       if (Number.isNaN(activeSet)) activeSet = -1;
 
-      // Ensure default set appears owned
-      if (!purchases.includes(-1)) purchases.push(-1);
+      if (!purchases.includes(-1)) purchases.push(-1); // default set
 
       bestText.textContent  = fmt(best);
       coinsText.textContent = fmt(coins);
@@ -274,14 +275,14 @@
         const actions = document.createElement('div');
         actions.className = 'actions';
 
-        // BUY button (hidden/disabled for default set)
+        // BUY
         const buyBtn = document.createElement('button');
         buyBtn.className = 'btn';
         buyBtn.innerHTML = `Buy <img src="Images/coin.webp" alt=""> ${fmt(set.price)}`;
 
         if (isDefault || !unlocked || owned){
           buyBtn.disabled = true;
-          if (isDefault) buyBtn.style.visibility = 'hidden'; // remove for default set
+          if (isDefault) buyBtn.style.visibility = 'hidden';
         }
 
         buyBtn.addEventListener('click', async ()=>{
@@ -293,20 +294,17 @@
           setBtn.disabled = false;
         });
 
-        // SET ACTIVE button – inverts when active (no blue tag)
+        // SET ACTIVE
         const setBtn = document.createElement('button');
         setBtn.className = 'btn setBtn';
         setBtn.textContent = (activeSet === set.id) ? 'Active' : 'Set Active';
         setBtn.classList.toggle('activeInvert', activeSet === set.id);
 
-        // Enabled if unlocked AND owned (or default)
-        if (!(unlocked || isDefault) || !(owned || isDefault)){
-          setBtn.disabled = true;
-        }
+        if (!(unlocked || isDefault) || !(owned || isDefault)){ setBtn.disabled = true; }
 
         setBtn.addEventListener('click', async ()=>{
           if (setBtn.disabled) return;
-          activeSet = set.id;       // can be -1 for default
+          activeSet = set.id;
           await saveActive();
           refreshActiveButtons();
         });
@@ -321,12 +319,7 @@
       refreshActiveButtons();
     }
 
-    function onResize(){ setCSSSize(); }
-
     (async function(){
-      setCSSSize();
-      window.addEventListener('resize', onResize, {passive:true});
-
       // Preload icons to avoid layout jumps
       ['Images/crown.webp','Images/coin.webp','Images/lock.webp','Images/home.webp'].forEach(s=>{ const im=new Image(); im.src=s; });
 
