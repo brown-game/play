@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -21,6 +20,15 @@
       padding: env(safe-area-inset-top) env(safe-area-inset-right)
                env(safe-area-inset-bottom) env(safe-area-inset-left);
       user-select:none;
+    }
+
+    /* Stage clamps visual width so HUD cannot overflow on mobile */
+    #stage{
+      width: min(
+        var(--board-w),
+        calc(100vw - 24px - env(safe-area-inset-left) - env(safe-area-inset-right))
+      );
+      margin: 0 auto;
     }
 
     #best {
@@ -59,8 +67,9 @@
       transition: margin-top 150ms ease-out;
     }
 
+    /* HUD uses stage width so it never spills */
     #topbar{
-      width: var(--board-w);
+      width: 100%;
       display:flex; align-items:center; justify-content:space-between;
       gap:16px; margin: 2px 0 16px; box-sizing:border-box;
       position: relative;
@@ -83,7 +92,7 @@
     }
 
     #grid{
-      position:relative; width:var(--board-w); height: calc(var(--cell-size)*8 + var(--gap)*7);
+      position:relative; width:100%; height: calc(var(--cell-size)*8 + var(--gap)*7);
       background:#000; overflow:hidden; touch-action: manipulation;
     }
     .cell{
@@ -142,7 +151,7 @@
     }
 
     #guide {
-      width: var(--board-w);
+      width: 100%;
       height: auto;
       display: block;
       margin-top: 12px;
@@ -169,19 +178,22 @@
 
   <div id="score">0</div>
 
-  <div id="topbar">
-    <img id="thermo" alt="Heat" src="Images/heat0.webp"/>
-    <div id="clearedProgress">
-      <span id="numVal">0</span><span id="slash">/</span><span id="denVal">25</span>
+  <!-- Stage wraps HUD, grid, guide -->
+  <div id="stage">
+    <div id="topbar">
+      <img id="thermo" alt="Heat" src="Images/heat0.webp"/>
+      <div id="clearedProgress">
+        <span id="numVal">0</span><span id="slash">/</span><span id="denVal">25</span>
+      </div>
+      <img id="ice" alt="Ice" src="Images/ice.webp"/>
     </div>
-    <img id="ice" alt="Ice" src="Images/ice.webp"/>
-  </div>
 
-  <div id="heat" style="display:none">Heat: 0</div>
-  <div id="cleared" style="display:none">Blocks Cleared: 0</div>
+    <div id="heat" style="display:none">Heat: 0</div>
+    <div id="cleared" style="display:none">Blocks Cleared: 0</div>
 
-  <div id="grid"></div>
+    <div id="grid"></div>
 
+      </div>
 
   <div id="overlay" role="dialog" aria-modal="true">
     <div id="endWindow">
@@ -281,15 +293,14 @@
       }
     };
 
-    /* Tile art (default: 1..7.webp).
-       Order is [R, Y, B, O, G, P, brown] — note: 5=green, 6=purple per request. */
+    /* Tile art (default: 1..7.webp). 5=green, 6=purple. */
     let IMAGES = {
       R:'Images/1.webp',
       Y:'Images/2.webp',
       B:'Images/3.webp',
       O:'Images/4.webp',
-      G:'Images/5.webp',  // swapped
-      P:'Images/6.webp',  // swapped
+      G:'Images/5.webp',
+      P:'Images/6.webp',
       brown:'Images/7.webp'
     };
     const UI_IMAGES = [
@@ -306,8 +317,8 @@
             Y: `Images/${base+1}.webp`,
             B: `Images/${base+2}.webp`,
             O: `Images/${base+3}.webp`,
-            G: `Images/${base+4}.webp`, // 5 = green
-            P: `Images/${base+5}.webp`, // 6 = purple
+            G: `Images/${base+4}.webp`,
+            P: `Images/${base+5}.webp`,
             brown: `Images/${base+6}.webp`,
           };
         }
@@ -376,15 +387,24 @@
       const topInset = parseFloat(getComputedStyle(document.body).paddingTop)||0;
       scoreEl.style.marginTop = Math.max(12, offset - topInset) + 'px';
     }
+
     function resizeBoard(){
-      const padding = 32, vw = window.innerWidth || 360;
-      const target = Math.max(280, Math.min(vw - padding*2, 720));
+      // First pass: estimate from viewport
+      const vw = Math.min(window.innerWidth || 360, 10000);
+      const target = Math.max(280, Math.min(vw - 24, 720)); // small side margin
       const {gap} = sizes();
-      const cell = Math.floor((target - gap*7)/8);
+      let cell = Math.floor((target - gap*7)/8);
       document.documentElement.style.setProperty('--cell-size', cell+'px');
       document.documentElement.style.setProperty('--board-w', `calc(${cell}px*8 + ${gap}px*7)`);
-      document.getElementById('thermo').style.height = Math.round(cell*1.2)+'px';
-      document.getElementById('ice').style.height = Math.round(cell*1.3)+'px';
+      // Force layout, then measure stage’s REAL width and recompute exactly
+      void document.body.offsetWidth;
+      const stageWidth = document.getElementById('stage').getBoundingClientRect().width;
+      const cell2 = Math.floor((stageWidth - gap*7)/8);
+      document.documentElement.style.setProperty('--cell-size', cell2+'px');
+      document.documentElement.style.setProperty('--board-w', stageWidth+'px');
+      // Scale HUD
+      document.getElementById('thermo').style.height = Math.round(cell2*1.2)+'px';
+      document.getElementById('ice').style.height    = Math.round(cell2*1.3)+'px';
       offsetScoreUnderTopLeftHUD();
     }
     window.addEventListener('resize', resizeBoard, {passive:true});
@@ -541,7 +561,7 @@
       }
     }
 
-    /* ICE arc to thermometer center, then reset heat & reappear */
+    /* ICE arc to thermometer center, then reset heat & reappear (your version) */
     function iceArcResetThenReappear(onDone){
       const iceRect = iceEl.getBoundingClientRect();
       const thRect = thermoEl.getBoundingClientRect();
@@ -731,7 +751,7 @@
     async function loadMeta(){
       highScore = Math.max(0, parseInt(await Storage.get(HIGH_KEY)||'0',10) || 0);
       totalCoins = Math.max(0, parseInt(await Storage.get(COINS_KEY)||'0',10) || 0);
-      activeSet = parseInt(await Storage.get(ACTIVE_SET_KEY) || '-1', 10) + 1; //activeSet  = parseInt(await Storage.get(ACTIVE_SET_KEY)||'-1',10); 
+      activeSet = parseInt(await Storage.get(ACTIVE_SET_KEY) || '-1', 10) + 1;
       bestScoreText.textContent = fmt(highScore);
       totalCoinsText.textContent = fmt(totalCoins);
     }
@@ -746,4 +766,3 @@
   </script>
 </body>
 </html>
-
